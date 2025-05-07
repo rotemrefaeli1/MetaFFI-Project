@@ -1,0 +1,6 @@
+#ifndef METAFFI_PROJECT_LIBRARY_H
+#define METAFFI_PROJECT_LIBRARY_H
+
+void hello(void);
+
+#endif //METAFFI_PROJECT_LIBRARY_H

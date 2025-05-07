@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "CMakeFiles\\MetaFFI_Project.dir\\runtime\\plugin_interface.cpp.obj",
+            "outputs": [
+                "C:\\Users\\rotem\\CLionProjects\\MetaFFI Project\\cmake-build-debug\\vc140.pdb",
+                "CMakeFiles\\MetaFFI_Project.dir\\runtime\\plugin_interface.cpp.obj.ddi"
+            ],
+            "requires": []
+        }
+    ]
+}

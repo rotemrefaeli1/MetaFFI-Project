@@ -1,0 +1,3 @@
+C:/Users/rotem/CLionProjects/MetaFFI Project/cmake-build-debug/CMakeFiles/MetaFFI_Project.dir
+C:/Users/rotem/CLionProjects/MetaFFI Project/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/rotem/CLionProjects/MetaFFI Project/cmake-build-debug/CMakeFiles/rebuild_cache.dir
