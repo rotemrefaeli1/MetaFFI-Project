@@ -1,0 +1,18 @@
+# CLion / CMake
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+
+# JetBrains project files
+.idea/
+
+# DLLs and binaries
+*.dll
+*.exe
+
+# Node.js
+node_modules/
+package-lock.json
+
+# Misc
+*.log
