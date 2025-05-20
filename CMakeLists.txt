@@ -5,21 +5,23 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
 # Include directories for Node.js headers
-include_directories(
-        ${CMAKE_SOURCE_DIR}/include
-        "C:/Users/sagib/OneDrive/Documents/node-v20.10.0/src"
-        "C:/Users/sagib/OneDrive/Documents/node-v20.10.0/deps/v8/include"
+set(test_nodejs_src ${CMAKE_CURRENT_LIST_DIR}/tests/main.cpp)
 
-)
-
-# Link directories where libnode.lib is located
-link_directories(
-        "C:/Users/sagib/OneDrive/Documents/node-v20.10.0/out/Release/lib"
-)
 
 # Executable to test Node.js embedding
-add_executable(run_nodejs tests/main.cpp)
+add_executable(test_nodejs ${test_nodejs_src})
+
+target_include_directories(
+        test_nodejs PRIVATE
+        "C:/node-v20.10.0/src"
+        "C:/node-v20.10.0/deps/v8/include"
+        "C:/node-v20.10.0/deps/uv/include"
+)
+
+link_directories(
+        "C:/node-v20.10.0/out/Release/lib"
+)
 
 # Link with the correct library name:
-target_link_libraries(run_nodejs PRIVATE libnode)
-# or: target_link_libraries(run_nodejs PRIVATE node) ← לפי שם הקובץ
+target_link_libraries(test_nodejs PRIVATE "${CMAKE_CURRENT_LIST_DIR}/lib/node.lib")
+# or: target_link_libraries(run_nodejs PRIVATE node)
