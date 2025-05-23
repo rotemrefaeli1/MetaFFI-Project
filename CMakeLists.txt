@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD 20)
 # Include directories for Node.js headers
 set(test_nodejs_src ${CMAKE_CURRENT_LIST_DIR}/tests/main.cpp)
 
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+
+
 
 # Executable to test Node.js embedding
 add_executable(test_nodejs ${test_nodejs_src})
@@ -19,9 +22,15 @@ target_include_directories(
 )
 
 link_directories(
-        "C:/node-v20.10.0/out/Release/lib"
+        "C:/node-v20.10.0/Release"
+        "C:/node-v20.10.0/Release/lib"
 )
 
+
 # Link with the correct library name:
-target_link_libraries(test_nodejs PRIVATE "${CMAKE_CURRENT_LIST_DIR}/lib/node.lib")
-# or: target_link_libraries(run_nodejs PRIVATE node)
+target_link_libraries(test_nodejs PRIVATE
+       # "C:/node-v20.10.0/Release/node.lib"
+        "C:/node-v20.10.0/Release/lib/v8_libplatform.lib"
+        "C:/node-v20.10.0/Release/libnode.lib"
+)
+
