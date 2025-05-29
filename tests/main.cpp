@@ -54,6 +54,7 @@ int main() {
             return 1;
         }
 
+
         // קומפילציה והרצה
         Local<String> source = String::NewFromUtf8(isolate, js_code.c_str()).ToLocalChecked();
         Local<Script> script = Script::Compile(context, source).ToLocalChecked();
@@ -67,8 +68,48 @@ int main() {
         } else {
             std::cerr << "❌ hello() not found!" << std::endl;
         }
-    }
 
+        // Call uppercaseme("hello metaffi")
+        {
+            Local<Value> val = global->Get(context, String::NewFromUtf8(isolate, "uppercaseme").ToLocalChecked()).ToLocalChecked();
+            if (val->IsFunction()) {
+                Local<Function> func = Local<Function>::Cast(val);
+                Local<Value> args[1] = { String::NewFromUtf8(isolate, "hello metaffi").ToLocalChecked() };
+                Local<Value> result = func->Call(context, global, 1, args).ToLocalChecked();
+                String::Utf8Value utf8(isolate, result);
+                std::cout << "🔤 uppercaseme: " << *utf8 << std::endl;
+            }
+        }
+
+        // Call add(10, 20, 30)
+        {
+            Local<Value> val = global->Get(context, String::NewFromUtf8(isolate, "add").ToLocalChecked()).ToLocalChecked();
+            if (val->IsFunction()) {
+                Local<Function> func = Local<Function>::Cast(val);
+                Local<Value> args[3] = {
+                    Integer::New(isolate, 10),
+                    Integer::New(isolate, 20),
+                    Integer::New(isolate, 30)
+                };
+                Local<Value> result = func->Call(context, global, 3, args).ToLocalChecked();
+                std::cout << "➕ add: " << result->IntegerValue(context).ToChecked() << std::endl;
+            }
+        }
+
+        // Call integer_div(10, 3)
+        {
+            Local<Value> val = global->Get(context, String::NewFromUtf8(isolate, "integer_div").ToLocalChecked()).ToLocalChecked();
+            if (val->IsFunction()) {
+                Local<Function> func = Local<Function>::Cast(val);
+                Local<Value> args[2] = {
+                    Integer::New(isolate, 10),
+                    Integer::New(isolate, 3)
+                };
+                Local<Value> result = func->Call(context, global, 2, args).ToLocalChecked();
+                std::cout << "➗ integer_div: " << result->NumberValue(context).ToChecked() << std::endl;
+            }
+        }
+    }
     isolate->Dispose();
     V8::Dispose();
     delete create_params.array_buffer_allocator;
