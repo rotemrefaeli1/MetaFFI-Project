@@ -30,7 +30,7 @@ link_directories(
 # Link with the correct library name:
 target_link_libraries(test_nodejs PRIVATE
        # "C:/node-v20.10.0/Release/node.lib"
-        "C:/node-v20.10.0/Release/lib/v8_libplatform.lib"
-        "C:/node-v20.10.0/Release/libnode.lib"
+        "C:/node-v20.10.0/out/Release/lib/v8_libplatform.lib"
+        "C:/node-v20.10.0/out/Release/libnode.lib"
 )
 
