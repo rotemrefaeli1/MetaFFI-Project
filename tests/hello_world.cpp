@@ -6,9 +6,15 @@
 extern "C" {
 
     // מדפיס הודעה מה-C++
+    // void hello_world() {
+    //     std::cout << "Hello from C++!" << std::endl;
+    //
+    // }
     void hello_world() {
-        std::cout << "Hello from C++!" << std::endl;
+        printf("Hello from C++!\n");
+        fflush(stdout);
     }
+
 
     // פונקציה שמקבלת מחרוזת ומחזירה אותה באותיות גדולות
     void uppercase(const char* input, char* output) {
