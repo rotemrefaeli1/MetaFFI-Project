@@ -109,7 +109,62 @@ int main() {
                 std::cout << "➗ integer_div: " << result->NumberValue(context).ToChecked() << std::endl;
             }
         }
+
+
+
+    // 📚 Student GPA update
+    {
+    Local<Value> student_val = global->Get(context, String::NewFromUtf8(isolate, "student").ToLocalChecked()).ToLocalChecked();
+    if (!student_val->IsObject()) {
+        std::cerr << "❌ student object not found" << std::endl;
+    } else {
+        Local<Object> student = student_val->ToObject(context).ToLocalChecked();
+
+        // הדפסת GPA קודם
+        double previous_gpa = student->Get(context, String::NewFromUtf8(isolate, "GPA").ToLocalChecked())
+                                .ToLocalChecked()->NumberValue(context).ToChecked();
+        std::cout << "📚 Previous GPA: " << previous_gpa << std::endl;
+
+        // שליפת פונקציית updateStudentGPA
+        Local<Value> func_val = global->Get(context, String::NewFromUtf8(isolate, "updateStudentGPA").ToLocalChecked()).ToLocalChecked();
+        if (func_val->IsFunction()) {
+            Local<Function> update_func = Local<Function>::Cast(func_val);
+            Local<Value> args[2] = {
+                student,
+                Number::New(isolate, 92.0)
+            };
+
+            TryCatch try_catch(isolate);
+            Local<Value> result;
+            if (!update_func->Call(context, global, 2, args).ToLocal(&result)) {
+                String::Utf8Value err(isolate, try_catch.Exception());
+                std::cerr << "❌ JS Exception: " << *err << std::endl;
+            } else {
+                double new_gpa = result->NumberValue(context).ToChecked();
+                std::cout << "📘 New GPA: " << new_gpa << std::endl;
+
+                auto get_str = [&](const char* key) {
+                    Local<Value> val = student->Get(context, String::NewFromUtf8(isolate, key).ToLocalChecked()).ToLocalChecked();
+                    String::Utf8Value str(isolate, val);
+                    return std::string(*str);
+                };
+
+                auto get_num = [&](const char* key) {
+                    Local<Value> val = student->Get(context, String::NewFromUtf8(isolate, key).ToLocalChecked()).ToLocalChecked();
+                    return val->NumberValue(context).ToChecked();
+                };
+
+                std::cout << "👤 Student: " << get_str("name") << ", ID: " << get_str("id") << std::endl;
+                std::cout << "🎓 GPA: " << get_num("GPA") << ", Age: " << get_num("age")
+                        << ", Courses: " << get_num("num_courses") << std::endl;
+                   }
+              }
+            }
+        }
     }
+
+
+
     isolate->Dispose();
     V8::Dispose();
     delete create_params.array_buffer_allocator;
