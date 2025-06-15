@@ -7,7 +7,7 @@
 
 using namespace v8;
 
-static std::unique_ptr<Platform> platform;
+static std::unique_ptr<Platform> v8_platform;;
 static Isolate* isolate = nullptr;
 static Global<Context> global_context;
 
@@ -26,8 +26,8 @@ std::string ReadFile(const std::string& filename) {
 void initialize_environment() {
     V8::InitializeICUDefaultLocation(".");
     V8::InitializeExternalStartupData(".");
-    platform = platform::NewDefaultPlatform();
-    V8::InitializePlatform(platform.get());
+    v8_platform = v8:: platform::NewDefaultPlatform();
+    V8::InitializePlatform(v8_platform.get());
     V8::Initialize();
 
     allocator = ArrayBuffer::Allocator::NewDefaultAllocator();
@@ -38,7 +38,7 @@ void initialize_environment() {
     std::cout << "✅ Environment initialized" << std::endl;
 }
 
-// טען קובץ JavaScript והרץ אותו
+// טען ישות JavaScript והרץ אותו
 void load_runtime(const std::string& script_path) {
     if (!isolate) {
         std::cerr << "❌ Isolate is not initialized. Did you call initialize_environment()?" << std::endl;
