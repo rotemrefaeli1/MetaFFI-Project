@@ -3,7 +3,7 @@
 #include <cstdio>
 
 extern "C" {
-
+    // Structure to represent a student with basic academic and personal information
     struct Student {
         const char* name;
         float GPA;
@@ -11,7 +11,7 @@ extern "C" {
         int age;
         int num_courses;
     };
-
+    // Updates a student's GPA based on a new grade
     float update_student_gpa(Student* s, float new_grade) {
         if (!s || s->num_courses < 0) {
             std::cerr << "Invalid student data" << std::endl;
@@ -27,7 +27,7 @@ extern "C" {
         return s->GPA;
     }
 
-
+    // Prints student details to the standard output
     void print_student(const Student* s) {
         if (!s) {
             printf("Invalid student pointer\n");

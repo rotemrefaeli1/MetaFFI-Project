@@ -16,7 +16,7 @@ std::string ReadFile(const std::string& filename) {
 int main() {
     std::cout << "✅ main() started!" << std::endl;
 
-    // אתחול V8 עם "." כנתיב ברירת מחדל
+    // Initialize V8 with "." as the default path
     V8::InitializeICUDefaultLocation(".");
     V8::InitializeExternalStartupData(".");
     std::unique_ptr<Platform> platform = platform::NewDefaultPlatform();
@@ -33,7 +33,7 @@ int main() {
         Local<Context> context = Context::New(isolate);
         Context::Scope context_scope(context);
 
-        // הדפסת לוגים מ-JavaScript ל-console של C++
+        // Print logs from JavaScript to the C++ console
         Local<Object> global = context->Global();
         Local<Object> console = Object::New(isolate);
         console->Set(context,
@@ -47,7 +47,7 @@ int main() {
         ).Check();
         global->Set(context, String::NewFromUtf8(isolate, "console").ToLocalChecked(), console).Check();
 
-        // קריאת הקוד מ-hello.js
+        // Read the code from hello.js
         std::string js_code = ReadFile("hello.js");
         if (js_code.empty()) {
             std::cerr << "❌ hello.js is missing or empty" << std::endl;
@@ -55,12 +55,12 @@ int main() {
         }
 
 
-        // קומפילציה והרצה
+        // Compilation and execution
         Local<String> source = String::NewFromUtf8(isolate, js_code.c_str()).ToLocalChecked();
         Local<Script> script = Script::Compile(context, source).ToLocalChecked();
         script->Run(context).ToLocalChecked();
 
-        // הפעלת הפונקציה hello() מ-globalThis
+        // Call the hello() function from globalThis
         Local<Value> val = global->Get(context, String::NewFromUtf8(isolate, "hello").ToLocalChecked()).ToLocalChecked();
         if (val->IsFunction()) {
             Local<Function> hello_func = Local<Function>::Cast(val);
@@ -120,12 +120,12 @@ int main() {
     } else {
         Local<Object> student = student_val->ToObject(context).ToLocalChecked();
 
-        // הדפסת GPA קודם
+        // Print previous GPA
         double previous_gpa = student->Get(context, String::NewFromUtf8(isolate, "GPA").ToLocalChecked())
                                 .ToLocalChecked()->NumberValue(context).ToChecked();
         std::cout << "📚 Previous GPA: " << previous_gpa << std::endl;
 
-        // שליפת פונקציית updateStudentGPA
+        // Fetch updateStudentGPA function
         Local<Value> func_val = global->Get(context, String::NewFromUtf8(isolate, "updateStudentGPA").ToLocalChecked()).ToLocalChecked();
         if (func_val->IsFunction()) {
             Local<Function> update_func = Local<Function>::Cast(func_val);
@@ -164,7 +164,7 @@ int main() {
     }
 
 
-
+    // Free V8 resources and finalize the engine
     isolate->Dispose();
     V8::Dispose();
     delete create_params.array_buffer_allocator;

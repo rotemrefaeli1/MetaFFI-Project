@@ -2,7 +2,7 @@ const ffi = require('ffi-napi');
 const ref = require('ref-napi');
 const Struct = require('ref-struct-napi');
 
-// הגדרת מבנה Student בצד Node.js
+// Define the Student struct on the Node.js side
 const Student = Struct({
     name: 'string',
     GPA: 'float',
@@ -13,12 +13,12 @@ const Student = Struct({
 
 const StudentPtr = ref.refType(Student);
 
-// טעינת הספרייה
+// Load the shared library
 const lib = ffi.Library('./student', {
     update_student_gpa: ['float', [StudentPtr, 'float']],
     print_student: ['void', [StudentPtr]]
 });
-// יצירת מופע של Student
+// Create an instance of Student
 const student = new Student({
     name: "Sagi",
     GPA: 85.0,
@@ -28,7 +28,7 @@ const student = new Student({
 });
 
 console.log("📚 Previous GPA:",student.GPA);
-// קריאה לפונקציה
+// Call the function
 const newGrade = 92.0;
 const updatedGPA = lib.update_student_gpa(student.ref(), newGrade);
 
