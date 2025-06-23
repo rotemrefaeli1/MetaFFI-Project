@@ -14,7 +14,7 @@ static Global<Context> global_context;
 static ArrayBuffer::Allocator* allocator = nullptr;
 
 
-// קרא קובץ JS
+ // Reads a JavaScript file
 std::string ReadFile(const std::string& filename) {
     std::ifstream file(filename);
     std::stringstream buffer;
@@ -22,7 +22,7 @@ std::string ReadFile(const std::string& filename) {
     return buffer.str();
 }
 
-// אתחול סביבת Node/V8
+// Initializes the V8 runtime environment
 void initialize_environment() {
     V8::InitializeICUDefaultLocation(".");
     V8::InitializeExternalStartupData(".");
@@ -38,7 +38,7 @@ void initialize_environment() {
     std::cout << "✅ Environment initialized" << std::endl;
 }
 
-// טען ישות JavaScript והרץ אותו
+// Loads and runs a JavaScript file into the V8 context
 void load_runtime(const std::string& script_path) {
     if (!isolate) {
         std::cerr << "❌ Isolate is not initialized. Did you call initialize_environment()?" << std::endl;
@@ -50,7 +50,7 @@ void load_runtime(const std::string& script_path) {
     Local<Context> context = Context::New(isolate);
     Context::Scope context_scope(context);
 
-    global_context.Reset(isolate, context);  // שמור context ל־global
+    global_context.Reset(isolate, context);
 
     std::string js_code = ReadFile(script_path);
     if (js_code.empty()) {
@@ -68,6 +68,7 @@ void load_runtime(const std::string& script_path) {
     }
 
     Local<Value> result;
+//FIXME: no need run according to TSVI
     if (!script->Run(context).ToLocal(&result)) {
         String::Utf8Value err(isolate, try_catch.Exception());
         std::cerr << "❌ Runtime error: " << *err << std::endl;
@@ -77,7 +78,7 @@ void load_runtime(const std::string& script_path) {
     std::cout << "📦 Runtime loaded: " << script_path << std::endl;
 }
 
-// שחרור משאבים
+// Free V8 runtime resources
 void free_runtime() {
     if (isolate) {
         global_context.Reset();
@@ -93,7 +94,7 @@ void free_runtime() {
     std::cout << "🧹 Runtime freed" << std::endl;
 }
 
-
+// Calls a global JavaScript function with given arguments
 v8::Local<v8::Value> call_js_function(const std::string& func_name, int argc, v8::Local<v8::Value>* argv) {
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
