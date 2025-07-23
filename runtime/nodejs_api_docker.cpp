@@ -1,4 +1,4 @@
-// nodejs_api.cpp
+// nodejs_api_docker.cpp
 
 #include <v8.h>
 #include <libplatform/libplatform.h>
@@ -9,22 +9,16 @@
 #include "../plugin-sdk-main/runtime/cdt.h"
 #include <string.h>
 
-
 #ifdef _MSC_VER
 #define strdup _strdup
 #endif
 
-
-
 using namespace v8;
-static std::unique_ptr<Platform> v8_platform;;
+static std::unique_ptr<Platform> v8_platform;
 static Isolate* isolate = nullptr;
 static Global<Context> global_context;
-
 static ArrayBuffer::Allocator* allocator = nullptr;
 
-
- // Reads a JavaScript file
 std::string ReadFile(const std::string& filename) {
     std::ifstream file(filename);
     std::stringstream buffer;
@@ -32,21 +26,16 @@ std::string ReadFile(const std::string& filename) {
     return buffer.str();
 }
 
-//struct of xcall
 struct NodeJSContext {
     Isolate* isolate;
     Global<Context>* context;
     Global<Function>* function;
 };
 
-
-
-
-// Initializes the V8 runtime environment
-void load_runtime() {
+void load_runtime_internal() {
     V8::InitializeICUDefaultLocation(".");
     V8::InitializeExternalStartupData(".");
-    v8_platform = v8:: platform::NewDefaultPlatform();
+    v8_platform = platform::NewDefaultPlatform();
     V8::InitializePlatform(v8_platform.get());
     V8::Initialize();
 
@@ -57,59 +46,37 @@ void load_runtime() {
 
     std::cout << "✅ Environment initialized" << std::endl;
 }
-// make xcall- no return value+no params
-//load entity will be xcall
-// Loads and runs a JavaScript file into the V8 context
 
-/*
-void load_entity(const std::string& script_path) {
-    if (!isolate) {
-        std::cerr << "❌ Isolate is not initialized. Did you call initialize_environment()?" << std::endl;
-        return;
-    }
-
-    //maybe suppose to be in load_runtime function
-    Isolate::Scope isolate_scope(isolate);
-    HandleScope handle_scope(isolate);
-    Local<Context> context = Context::New(isolate);
-    Context::Scope context_scope(context);
-
-    global_context.Reset(isolate, context);
-//untill here
-
-    std::string js_code = ReadFile(script_path);
-    if (js_code.empty()) {
-        std::cerr << "❌ Failed to read JS file: " << script_path << std::endl;
-        return;
-    }
-
-    TryCatch try_catch(isolate);
-    Local<String> source = String::NewFromUtf8(isolate, js_code.c_str()).ToLocalChecked();
-    Local<Script> script;
-    if (!Script::Compile(context, source).ToLocal(&script)) {
-        String::Utf8Value err(isolate, try_catch.Exception());
-        std::cerr << "❌ Compile error: " << *err << std::endl;
-        return;
-    }
-
-    Local<Value> result;
-//FIXME: no need run according to TSVI
-    if (!script->Run(context).ToLocal(&result)) {
-        String::Utf8Value err(isolate, try_catch.Exception());
-        std::cerr << "❌ Runtime error: " << *err << std::endl;
-        return;
-    }
-
-    std::cout << "📦 Runtime loaded: " << script_path << std::endl;
-
-
-
+extern "C" void load_runtime() {
+    load_runtime_internal();
 }
-*/
 
-// xcall: function with no params and no return
+extern "C" void free_runtime() {
+    if (isolate) {
+        global_context.Reset();
+        isolate->Dispose();
+        isolate = nullptr;
+    }
+
+    V8::Dispose();
+    delete allocator;
+    allocator = nullptr;
+
+    std::cout << "🧹 Runtime freed" << std::endl;
+}
+
 void xcall_nodejs_no_params_no_ret(void* context_ptr, char** out_err) {
+    if (!context_ptr) {
+        if (out_err) *out_err = strdup("Context pointer is null");
+        return;
+    }
+
     NodeJSContext* ctx = static_cast<NodeJSContext*>(context_ptr);
+    if (!ctx->function || !ctx->context) {
+        if (out_err) *out_err = strdup("Invalid context: function or context is null");
+        return;
+    }
+
     Isolate* isolate = ctx->isolate;
 
     Isolate::Scope isolate_scope(isolate);
@@ -123,21 +90,17 @@ void xcall_nodejs_no_params_no_ret(void* context_ptr, char** out_err) {
     MaybeLocal<Value> result = func->Call(context, context->Global(), 0, nullptr);
     if (result.IsEmpty() && out_err) {
         String::Utf8Value exception(isolate, try_catch.Exception());
-        *out_err = strdup(*exception); // strdup for Windows
+        *out_err = strdup(*exception);
     }
 }
 
-// load_entity: required by MetaFFI
- struct xcall* load_entity(
+extern "C" struct xcall* load_entity(
     const char* module_path,
     const char* entity_path,
-    void* /* param_types */,
-    int8_t /* params_count */,
-    void* /* ret_types */,
-    int8_t /* retval_count */,
+    void*, int8_t,
+    void*, int8_t,
     char** err
-)
-{
+) {
     if (!isolate) {
         if (err) *err = strdup("V8 isolate not initialized. Call load_runtime first.");
         return nullptr;
@@ -155,7 +118,7 @@ void xcall_nodejs_no_params_no_ret(void* context_ptr, char** out_err) {
     }
 
     TryCatch try_catch(isolate);
-    Local<String> source = String::NewFromUtf8(isolate, js_code.c_str()).ToLocalChecked();
+    Local<String> source = String::NewFromUtf8(isolate, js_code.c_str(), NewStringType::kNormal).ToLocalChecked();
     Local<Script> script;
     if (!Script::Compile(context, source).ToLocal(&script) || script->Run(context).IsEmpty()) {
         String::Utf8Value exception(isolate, try_catch.Exception());
@@ -163,15 +126,17 @@ void xcall_nodejs_no_params_no_ret(void* context_ptr, char** out_err) {
         return nullptr;
     }
 
-    Local<Value> val = context->Global()->Get(context,
-        String::NewFromUtf8(isolate, entity_path).ToLocalChecked()).ToLocalChecked();
+        std::string entity_path_str(entity_path);
+    std::string prefix = "callable=";
+    std::string funcname = entity_path_str.rfind(prefix, 0) == 0 ? entity_path_str.substr(prefix.length()) : entity_path_str;
+    Local<String> func_name = String::NewFromUtf8(isolate, funcname.c_str(), NewStringType::kNormal).ToLocalChecked();
+    Local<Value> val = context->Global()->Get(context, func_name).ToLocalChecked();
 
     if (!val->IsFunction()) {
         if (err) *err = strdup("Function not found in JavaScript module");
         return nullptr;
     }
 
-    // הקונטקסט ישתחרר רק כש־xcall ישוחרר
     std::unique_ptr<NodeJSContext> ctx = std::make_unique<NodeJSContext>(
         NodeJSContext{
             isolate,
@@ -180,17 +145,13 @@ void xcall_nodejs_no_params_no_ret(void* context_ptr, char** out_err) {
         }
     );
 
-    // הפונקציה שאנחנו משתמשים בה לקריאה (כרגע: ללא פרמטרים וללא ערך חזרה)
     void* xcall_func = (void*)((void (*)(void*, char**)) &xcall_nodejs_no_params_no_ret);
-
-    // יצירת xcall לפי מטאפי
     struct xcall* pxcall = new xcall(xcall_func, ctx.release());
-
     return pxcall;
 }
 
- void free_entity(void* context_ptr)
-{
+extern "C" void free_entity(void* context_ptr) {
+    if (!context_ptr) return;
     NodeJSContext* ctx = static_cast<NodeJSContext*>(context_ptr);
     ctx->context->Reset();
     ctx->function->Reset();
@@ -199,24 +160,20 @@ void xcall_nodejs_no_params_no_ret(void* context_ptr, char** out_err) {
     delete ctx;
 }
 
-
-// Free V8 runtime resources
-void free_runtime() {
-    if (isolate) {
-        global_context.Reset();
-        isolate->Dispose();
-        isolate = nullptr;
+extern "C" void* make_callable(void* callable_metadata, void* fp, char** out_err)
+{
+    if (out_err)
+    {
+        *out_err = strdup("make_callable is not supported in this xllr implementation");
     }
-
-    V8::Dispose();
-    delete allocator;
-    allocator=nullptr;
-
-
-    std::cout << "🧹 Runtime freed" << std::endl;
+    return nullptr;
 }
 
-// Calls a global JavaScript function with given arguments
+extern "C" void free_xcall(void* pxcall)
+{
+    delete static_cast<xcall*>(pxcall);
+}
+
 v8::Local<v8::Value> call_js_function(const std::string& func_name, int argc, v8::Local<v8::Value>* argv) {
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
@@ -226,7 +183,8 @@ v8::Local<v8::Value> call_js_function(const std::string& func_name, int argc, v8
     TryCatch try_catch(isolate);
 
     Local<Object> global = context->Global();
-    Local<Value> val = global->Get(context, String::NewFromUtf8(isolate, func_name.c_str()).ToLocalChecked()).ToLocalChecked();
+    Local<String> name = String::NewFromUtf8(isolate, func_name.c_str(), NewStringType::kNormal).ToLocalChecked();
+    Local<Value> val = global->Get(context, name).ToLocalChecked();
 
     if (!val->IsFunction()) {
         std::cerr << "❌ Function '" << func_name << "' not found" << std::endl;

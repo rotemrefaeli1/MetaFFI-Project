@@ -47,10 +47,10 @@ int main() {
         ).Check();
         global->Set(context, String::NewFromUtf8(isolate, "console").ToLocalChecked(), console).Check();
 
-        // Read the code from hello.js
-        std::string js_code = ReadFile("hello.js");
+        // Read the code from tests.js
+        std::string js_code = ReadFile("tests.js");
         if (js_code.empty()) {
-            std::cerr << "❌ hello.js is missing or empty" << std::endl;
+            std::cerr << "❌ tests.js is missing or empty" << std::endl;
             return 1;
         }
 

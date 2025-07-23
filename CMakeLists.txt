@@ -19,6 +19,8 @@ add_executable(test_nodejs ${test_nodejs_src})
 
 add_executable(test_nodejs_api ${test_nodejs_api_src})
 
+# 📦 MetaFFI Plugin: xllr.nodejs.dll
+add_library(xllr_nodejs SHARED ${CMAKE_CURRENT_LIST_DIR}/runtime/nodejs_api.cpp)
 
 
 target_include_directories(
@@ -50,6 +52,28 @@ target_include_directories(
 )
 
 target_link_libraries(test_nodejs_api PRIVATE
+        "C:/node-v20.10.0/out/Release/lib/v8_libplatform.lib"
+        "C:/node-v20.10.0/out/Release/libnode.lib"
+)
+
+
+#MetaFFI extension
+
+
+target_include_directories(xllr_nodejs PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}/plugin-sdk-main/runtime           # הקבצים xcall.h, cdt.h
+        "C:/node-v20.10.0/src"
+        "C:/node-v20.10.0/deps/v8/include"
+        "C:/node-v20.10.0/deps/uv/include"
+)
+
+target_link_directories(xllr_nodejs PRIVATE
+        "C:/node-v20.10.0/Release"
+        "C:/node-v20.10.0/Release/lib"
+        "C:/node-v20.10.0/out/Release"  # אם צריך
+)
+
+target_link_libraries(xllr_nodejs PRIVATE
         "C:/node-v20.10.0/out/Release/lib/v8_libplatform.lib"
         "C:/node-v20.10.0/out/Release/libnode.lib"
 )
