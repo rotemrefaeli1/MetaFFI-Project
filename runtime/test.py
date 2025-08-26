@@ -2,15 +2,15 @@ import metaffi
 import metaffi.metaffi_runtime
 import metaffi.metaffi_module
 
-# טען את ה־runtime של Node.js
+# Load the Node.js runtime into MetaFFI
 runtime = metaffi.metaffi_runtime.MetaFFIRuntime('nodejs')
 runtime.load_runtime_plugin()
 
-# טען את קובץ ה־JS
+# Load the JavaScript module (hello.js)
 mod = runtime.load_module('hello.js')
 
-# טען את הפונקציה
+# Load the JavaScript function by specifying its callable name
 func = mod.load_entity('callable=helloMetaFFI', None, None)
 
-# הרץ את הפונקציה
+# Execute the loaded function
 func()
