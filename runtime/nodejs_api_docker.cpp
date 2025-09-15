@@ -1,4 +1,6 @@
-// nodejs_api_docker.cpp  (תיקון חתימות + Locker + שחרורים)
+// nodejs_api_docker.cpp
+// ABI-safe: xcall is a C POD allocated with malloc; plugin frees it in free_xcall.
+// V8 handles are reset under v8::Locker + Isolate::Scope to be cross-thread safe.
 
 #include <v8.h>
 #include <libplatform/libplatform.h>
@@ -9,10 +11,10 @@
 #include <string>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>   // malloc/free
 
 #include "../plugin-sdk-main/runtime/xcall.h"
 #include "../plugin-sdk-main/runtime/cdt.h"
-
 
 #ifdef _MSC_VER
 #define strdup _strdup
@@ -31,6 +33,8 @@ struct NodeJSContext {
     Global<Function>* function;
 };
 
+// ---------- Helpers ----------
+
 static std::string ReadFile(const std::string& filename) {
     std::ifstream file(filename);
     std::stringstream buffer;
@@ -39,8 +43,11 @@ static std::string ReadFile(const std::string& filename) {
 }
 
 static void load_runtime_internal() {
+    std::cout << "[nodejs] load_runtime_internal" << std::endl;
+
     V8::InitializeICUDefaultLocation(".");
     V8::InitializeExternalStartupData(".");
+
     v8_platform = platform::NewDefaultPlatform();
     V8::InitializePlatform(v8_platform.get());
     V8::Initialize();
@@ -50,48 +57,48 @@ static void load_runtime_internal() {
     create_params.array_buffer_allocator = allocator;
     isolate = Isolate::New(create_params);
 
-    std::cout << "Environment initialized" << std::endl;
+    // Optional one-time build stamp for sanity
+    std::cout << "[nodejs] build " << __DATE__ << " " << __TIME__ << std::endl;
 }
 
-// ===== חתימות זהות ל-Python plugin =====
+// ---------- Runtime API ----------
+
 extern "C" void load_runtime(char** err) {
     if (err) *err = nullptr;
+    std::cout << "[nodejs] load_runtime" << std::endl;
     load_runtime_internal();
 }
 
 extern "C" void free_runtime(char** err) {
     if (err) *err = nullptr;
+    std::cout << "[nodejs] free_runtime" << std::endl;
 
     if (isolate) {
         global_context.Reset();
         isolate->Dispose();
         isolate = nullptr;
     }
+
     V8::Dispose();
     v8_platform.reset();
 
     delete allocator;
     allocator = nullptr;
-
-    std::cout << "🧹 Runtime freed" << std::endl;
 }
 
-// ===== xcall (no params, no ret) – עם Locker + noexcept + extern "C" =====
+// ---------- XCall (no params, no return) ----------
+
 extern "C" void xcall_nodejs_no_params_no_ret(void* context_ptr, char** out_err) noexcept {
     if (out_err) *out_err = nullptr;
+    std::cout << "[nodejs] xcall" << std::endl;
 
     if (!context_ptr) { if (out_err) *out_err = strdup("Context pointer is null"); return; }
     auto* ctx = static_cast<NodeJSContext*>(context_ptr);
-    if (!ctx->function || !ctx->context) {
-        if (out_err) *out_err = strdup("Invalid context: function or context is null");
-        return;
-    }
+    if (!ctx->function || !ctx->context) { if (out_err) *out_err = strdup("Invalid context: function or context is null"); return; }
     Isolate* iso = ctx->isolate;
     if (!iso) { if (out_err) *out_err = strdup("Isolate is null"); return; }
 
-    // חשוב אם ה-xcall רץ מ-thread אחר
     v8::Locker locker(iso);
-
     Isolate::Scope isolate_scope(iso);
     HandleScope handle_scope(iso);
     Local<Context> context = ctx->context->Get(iso);
@@ -99,20 +106,17 @@ extern "C" void xcall_nodejs_no_params_no_ret(void* context_ptr, char** out_err)
 
     TryCatch try_catch(iso);
     Local<Function> func = ctx->function->Get(iso);
-
     MaybeLocal<Value> result = func->Call(context, context->Global(), 0, nullptr);
     if (result.IsEmpty() && out_err) {
         String::Utf8Value ex(iso, try_catch.Exception());
         *out_err = strdup(*ex ? *ex : "Unknown JS exception");
     }
-
-    std::cout << "got out of the function" << std::endl;
 }
 
-// חתימת מצביע פונקציה מדויקת (מפחית סיכוני ABI)
 using xcall_fn_t = void(*)(void*, char**);
 
-// ===== load_entity – חתימה זהה ל-Python (שימי לב ל-metaffi_type_info*) =====
+// ---------- load_entity (no params, no return) ----------
+
 extern "C" struct xcall* load_entity(
     const char* module_path,
     const char* entity_path,
@@ -121,37 +125,22 @@ extern "C" struct xcall* load_entity(
     char** err
 ) {
     if (err) *err = nullptr;
+    std::cout << "[nodejs] load_entity" << std::endl;
 
-    // הגנות על החוזה (כמו ב-Python plugin)
-    if (params_count != 0) {
-        if (err) *err = strdup("This Node.js entity currently supports zero params only");
-        return nullptr;
-    }
-    if (retval_count != 0) {
-        if (err) *err = strdup("This Node.js entity currently supports no return value");
-        return nullptr;
-    }
-
-    if (!isolate) {
-        if (err) *err = strdup("V8 isolate not initialized. Call load_runtime first.");
-        return nullptr;
-    }
+    if (params_count != 0) { if (err) *err = strdup("This Node.js entity currently supports zero params only"); return nullptr; }
+    if (retval_count != 0) { if (err) *err = strdup("This Node.js entity currently supports no return value"); return nullptr; }
+    if (!isolate) { if (err) *err = strdup("V8 isolate not initialized. Call load_runtime first."); return nullptr; }
     if (!module_path) { if (err) *err = strdup("Module path is null"); return nullptr; }
     if (!entity_path) { if (err) *err = strdup("Entity path is null"); return nullptr; }
 
-    // (לא חובה, אבל בטוח)
     v8::Locker locker(isolate);
-
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
     Local<Context> context = Context::New(isolate);
     Context::Scope context_scope(context);
 
     std::string js_code = ReadFile(module_path);
-    if (js_code.empty()) {
-        if (err) *err = strdup("Failed to read JavaScript module");
-        return nullptr;
-    }
+    if (js_code.empty()) { if (err) *err = strdup("Failed to read JavaScript module"); return nullptr; }
 
     TryCatch try_catch(isolate);
     Local<String> source = String::NewFromUtf8(isolate, js_code.c_str(), NewStringType::kNormal).ToLocalChecked();
@@ -162,7 +151,6 @@ extern "C" struct xcall* load_entity(
         return nullptr;
     }
 
-    // entity_path בסגנון "callable=helloMetaFFI"
     std::string entity_path_str(entity_path);
     std::string prefix = "callable=";
     std::string funcname = entity_path_str.rfind(prefix, 0) == 0
@@ -177,10 +165,7 @@ extern "C" struct xcall* load_entity(
         if (err) *err = strdup(*ex ? *ex : "Unknown error retrieving function");
         return nullptr;
     }
-    if (!val->IsFunction()) {
-        if (err) *err = strdup("Function is not a JavaScript function");
-        return nullptr;
-    }
+    if (!val->IsFunction()) { if (err) *err = strdup("Function is not a JavaScript function"); return nullptr; }
 
     auto local_func = Local<Function>::Cast(val);
     auto* global_func = new Global<Function>();
@@ -190,50 +175,88 @@ extern "C" struct xcall* load_entity(
     global_ctx->Reset(isolate, context);
 
     auto* raw_ctx = new NodeJSContext{ isolate, global_ctx, global_func };
-
     xcall_fn_t f = &xcall_nodejs_no_params_no_ret;
-    struct xcall* pxcall = new xcall(reinterpret_cast<void*>(f), raw_ctx);
 
-    // אופציונלי
+    struct xcall* pxcall = (xcall*)std::malloc(sizeof(xcall));
+    if (!pxcall) {
+        if (err) *err = strdup("malloc failed allocating xcall");
+        global_func->Reset();
+        global_ctx->Reset();
+        delete global_func;
+        delete global_ctx;
+        delete raw_ctx;
+        return nullptr;
+    }
+
+    pxcall->pxcall_and_context[0] = reinterpret_cast<void*>(f);
+    pxcall->pxcall_and_context[1] = raw_ctx;
+
     global_context.Reset(isolate, context);
-
     return pxcall;
 }
 
-// ===== free_entity נשארת – ייתכן שה-runtime לא יקרא אותה בכלל =====
-extern "C" void free_entity(void* context_ptr) {
+// ---------- free_xcall ----------
+// Plugin frees both the V8 context (ours) and the xcall POD (allocated with malloc).
+extern "C" void free_xcall(xcall* pxcall, char** err) noexcept {
+    if (err) *err = nullptr;
+    std::cout << "[nodejs] free_xcall" << std::endl;
+    if (!pxcall) return;
+
+    void** arr = pxcall->pxcall_and_context;
+    NodeJSContext* ctx = (arr ? static_cast<NodeJSContext*>(arr[1]) : nullptr);
+
+    if (ctx) {
+        if (ctx->isolate) {
+            v8::Locker locker(ctx->isolate);
+            v8::Isolate::Scope isolate_scope(ctx->isolate);
+            v8::HandleScope handle_scope(ctx->isolate);
+            if (ctx->context)  ctx->context->Reset();
+            if (ctx->function) ctx->function->Reset();
+        } else {
+            if (ctx->context)  ctx->context->Reset();
+            if (ctx->function) ctx->function->Reset();
+        }
+
+        delete ctx->context;
+        delete ctx->function;
+        delete ctx;
+    }
+
+    if (arr) {
+        arr[0] = nullptr;
+        arr[1] = nullptr;
+    }
+
+    std::free(pxcall);
+}
+
+// ---------- free_entity (not used in the current flow) ----------
+
+extern "C" void free_entity(void* context_ptr, char** err) noexcept {
+    if (err) *err = nullptr;
+    std::cout << "[nodejs] free_entity" << std::endl;
+
     if (!context_ptr) return;
     auto* ctx = static_cast<NodeJSContext*>(context_ptr);
-    if (ctx->context)  ctx->context->Reset();
-    if (ctx->function) ctx->function->Reset();
+
+    if (ctx->isolate) {
+        v8::Locker locker(ctx->isolate);
+        v8::Isolate::Scope isolate_scope(ctx->isolate);
+        v8::HandleScope handle_scope(ctx->isolate);
+        if (ctx->context)  ctx->context->Reset();
+        if (ctx->function) ctx->function->Reset();
+    } else {
+        if (ctx->context)  ctx->context->Reset();
+        if (ctx->function) ctx->function->Reset();
+    }
+
     delete ctx->context;
     delete ctx->function;
     delete ctx;
 }
 
-// ===== free_xcall – חתימה זהה ל-Python plugin ומשחררת גם context =====
-extern "C" void free_xcall(xcall* pxcall, char** err) {
-    if (err) *err = nullptr;
-    if (!pxcall) return;
+// ---------- make_callable (not supported) ----------
 
-    void** arr = pxcall->pxcall_and_context;
-    if (arr) {
-        // arr[1] הוא ה-context לפי החוזה של xcall
-        if (arr[1]) {
-            auto* ctx = static_cast<NodeJSContext*>(arr[1]);
-            if (ctx->context)  ctx->context->Reset();
-            if (ctx->function) ctx->function->Reset();
-            delete ctx->context;
-            delete ctx->function;
-            delete ctx;
-        }
-        arr[0] = nullptr;
-        arr[1] = nullptr;
-    }
-    delete pxcall;
-}
-
-// (אופציונלי) make_callable – אפשר להשאיר לא נתמך
 extern "C" xcall* make_callable(void*, metaffi_type_info*, int8_t, metaffi_type_info*, int8_t, char** out_err) {
     if (out_err) *out_err = strdup("make_callable is not supported in this xllr implementation");
     return nullptr;
