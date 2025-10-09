@@ -1,5 +1,5 @@
-#---------------------------------------------------------------------------------------
-#working:
+# ---------------------------------------------------------------------------------------
+# working:
 
 # import metaffi
 # import metaffi.metaffi_runtime
@@ -19,40 +19,40 @@
 #     del mod
 #     runtime.release_runtime_plugin()  # משחרר את ה-isolate בסוף
 #     del runtime
-#---------------------------------------------------------
-#
-# import metaffi
-# import metaffi.metaffi_runtime as mr
-# import metaffi.metaffi_types as mt
-#
-# rt = mr.MetaFFIRuntime('nodejs')
-# rt.load_runtime_plugin()
-#
-# mod_add = rt.load_module('add.js')
-#
-# # int32
-# params32 = [
-#     mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int32_type),
-#     mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int32_type),
-# ]
-# ret32 = [mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int32_type)]
-# add_ints = mod_add.load_entity('callable=add_ints', params32, ret32)
-# print("add_ints(7, 2) =", add_ints(7, 2))
-#
-# # int64
-# params64 = [
-#     mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int64_type),
-#     mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int64_type),
-# ]
-# ret64 = [mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int64_type)]
-# add_ints64 = mod_add.load_entity('callable=add_ints64', params64, ret64)
-# print("add_ints64(2**40, 2**40) =", add_ints64(2**40, 2**40))
-#
-# # cleanup
-# del add_ints, add_ints64
-# del mod_add
-# rt.release_runtime_plugin()
-# del rt
+# #---------------------------------------------------------
+# #
+# # import metaffi
+# # import metaffi.metaffi_runtime as mr
+# # import metaffi.metaffi_types as mt
+# #
+# # rt = mr.MetaFFIRuntime('nodejs')
+# # rt.load_runtime_plugin()
+# #
+# # mod_add = rt.load_module('add.js')
+# #
+# # # int32
+# # params32 = [
+# #     mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int32_type),
+# #     mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int32_type),
+# # ]
+# # ret32 = [mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int32_type)]
+# # add_ints = mod_add.load_entity('callable=add_ints', params32, ret32)
+# # print("add_ints(7, 2) =", add_ints(7, 2))
+# #
+# # # int64
+# # params64 = [
+# #     mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int64_type),
+# #     mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int64_type),
+# # ]
+# # ret64 = [mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int64_type)]
+# # add_ints64 = mod_add.load_entity('callable=add_ints64', params64, ret64)
+# # print("add_ints64(2**40, 2**40) =", add_ints64(2**40, 2**40))
+# #
+# # # cleanup
+# # del add_ints, add_ints64
+# # del mod_add
+# # rt.release_runtime_plugin()
+# # del rt
 #----------------------------------------------------------------------------
 
 import metaffi
@@ -61,6 +61,16 @@ import metaffi.metaffi_types as mt
 
 rt = mr.MetaFFIRuntime('nodejs')
 rt.load_runtime_plugin()
+
+# -------------------------------------------------
+# hello.js (no params, no return)
+# -------------------------------------------------
+mod_hello = rt.load_module('hello.js')
+hello = mod_hello.load_entity('callable=helloMetaFFI', None, None)
+
+print("=== hello.js ===")
+hello()
+
 
 # --- load add module ---
 mod_add = rt.load_module('add.js')

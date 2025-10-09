@@ -307,6 +307,47 @@ static inline void set_err(char** err, const char* msg){
     *err = strdup(msg ? msg : "unknown error");
 }
 
+//-----------console
+
+static void inject_console(v8::Isolate* isolate, v8::Local<v8::Context> context)
+{
+    using namespace v8;
+
+    // create console.log
+    Local<Object> console = Object::New(isolate);
+    Local<Function> logFn =
+        Function::New(context, [](const FunctionCallbackInfo<Value>& args){
+            Isolate* iso = args.GetIsolate();
+            std::ostringstream oss;
+            for (int i = 0; i < args.Length(); ++i){
+                String::Utf8Value s(iso, args[i]);
+                if (i) oss << " ";
+                oss << (*s ? *s : "");
+            }
+            std::string line = oss.str();
+
+            // למסך (stdout של התהליך)
+            std::cout << line << std::endl;
+
+            // אופציונלי: גם לקובץ כדי שתוכל לקרוא מה-Java/Python
+            try{
+                std::ofstream out("/workspace/runtime/hello_output.txt", std::ios::app);
+                out << line << "\n";
+            } catch(...) {}
+        }).ToLocalChecked();
+
+    console->Set(context,
+        String::NewFromUtf8(isolate, "log", NewStringType::kNormal).ToLocalChecked(),
+        logFn
+    ).Check();
+
+    context->Global()->Set(
+        context,
+        String::NewFromUtf8(isolate, "console", NewStringType::kNormal).ToLocalChecked(),
+        console
+    ).Check();
+}
+
 // --------- Context ---------
 
 struct NodeJSContext {
@@ -484,6 +525,8 @@ extern "C" struct xcall* load_entity(
     HandleScope handle_scope(isolate);
     Local<Context> context = Context::New(isolate);
     Context::Scope context_scope(context);
+    // inject console.log before running any JS
+    inject_console(isolate, context);
 
     std::string js_code = ReadFile(module_path);
     if(js_code.empty()){ set_err(err,"Failed to read JavaScript module"); return nullptr; }

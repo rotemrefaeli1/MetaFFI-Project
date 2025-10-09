@@ -10,7 +10,7 @@ CMakeCache.txt
 *.dll
 *.exe
 *.so
-
+*.class
 
 # Node.js
 node_modules/
