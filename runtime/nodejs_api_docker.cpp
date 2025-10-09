@@ -408,12 +408,11 @@ extern "C" void nodejs_xcall_params_ret(void* context_ptr, cdts params_ret[2], c
 
     v8_conv_opts opts{ iso, context };
 
-    // build argv from params_ret[0]
-    const cdts& in = params_ret[0];
+    // --- CDT params -> argv ---
     std::vector<Local<Value>> argv;
-    if(!cdts_to_v8_argv(opts, in, argv, out_err)) return;
+    if(!cdts_to_v8_argv(opts, params_ret[0], argv, out_err)) return;
 
-    // call JS
+    // --- call JS ---
     TryCatch tc(iso);
     Local<Function> func = ctx->function->Get(iso);
     if(func.IsEmpty()){ set_err(out_err,"empty function"); return; }
@@ -427,49 +426,38 @@ extern "C" void nodejs_xcall_params_ret(void* context_ptr, cdts params_ret[2], c
         return;
     }
 
-    // ensure one return slot
-    if(params_ret[1].length == 0){
-        new (&params_ret[1]) cdts(1, /*fixed_dimensions*/1);
+    // --- handle returns as declared in load_entity ---
+    if (ctx->retval_count == 0) {
+        // no return values declared
+        return;
     }
 
-    cdt& out0 = params_ret[1][0];
-
-    // decide target type from host slot, or from ctx, default int32
-    metaffi_type target_type = out0.type;
-    if(target_type == metaffi_null_type){
-        target_type = (ctx->ret_types && ctx->retval_count>0) ? ctx->ret_types[0].type : metaffi_int32_type;
-        out0.type = target_type;
+    // ensure enough slots in params_ret[1]
+    if (params_ret[1].length < ctx->retval_count) {
+        new (&params_ret[1]) cdts((metaffi_size)ctx->retval_count, /*fixed_dimensions*/ 1);
     }
 
-    // convert JS -> int32 (fits our current int+int scenario)
-    int32_t v32 = 0;
-    if(js_ret->IsInt32()){
-         v32 = js_ret.As<Int32>()->Value();
-    }else if(js_ret->IsBigInt()){
-         bool ok=false; int64_t v64 = js_ret.As<BigInt>()->Int64Value(&ok);
-         if(!ok){ set_err(out_err,"BigInt not convertible"); return; }
-         if      (v64 < (int64_t)std::numeric_limits<int32_t>::min()) v32 = std::numeric_limits<int32_t>::min();
-         else if (v64 > (int64_t)std::numeric_limits<int32_t>::max()) v32 = std::numeric_limits<int32_t>::max();
-         else v32 = (int32_t)v64;
-    }else if(js_ret->IsNumber()){
-         double d = js_ret->NumberValue(context).ToChecked();
-         v32 = (int32_t)d; // truncate toward 0
-    }else if(js_ret->IsUndefined() || js_ret->IsNull()){
-         v32 = 0;
-    }else{
-         set_err(out_err,"JS return not a Number/BigInt"); return;
+    if (ctx->retval_count == 1) {
+        // single return value: convert according to declared type
+        if (!v8_to_cdt_as_type(opts, js_ret, ctx->ret_types[0], &params_ret[1][0], out_err)) {
+            return;
+        }
+    } else {
+        // multiple returns expected → JS must return an Array
+        if (!js_ret->IsArray()) { set_err(out_err, "JS did not return an Array for multiple return values"); return; }
+        Local<Array> arr = js_ret.As<Array>();
+
+        for (int i = 0; i < ctx->retval_count; ++i) {
+            Local<Value> ri;
+            if (!arr->Get(context, i).ToLocal(&ri)) {
+                set_err(out_err, "Failed reading return array element");
+                return;
+            }
+            if (!v8_to_cdt_as_type(opts, ri, ctx->ret_types[i], &params_ret[1][i], out_err)) {
+                return;
+            }
+        }
     }
-
-    // write ONLY the union field that matches the target type
-    out0.free_required = 0;
-    switch(out0.type){
-        case metaffi_int32_type:   out0.cdt_val.int32_val   = v32;          break;
-        case metaffi_int64_type:   out0.cdt_val.int64_val   = (int64_t)v32; break;
-        case metaffi_float64_type: out0.cdt_val.float64_val = (double)v32;  break;
-        default:                   out0.cdt_val.int32_val   = v32;          break;
-    }
-
-
 }
 
 // --------- load_entity ---------

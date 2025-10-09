@@ -29,31 +29,27 @@ Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err){
         case metaffi_bool_type:
             return Boolean::New(iso, in.cdt_val.bool_val != 0);
 
-        case metaffi_int8_type:  return Integer::New(iso,  (int32_t)in.cdt_val.int8_val);
-        case metaffi_int16_type: return Integer::New(iso,  (int32_t)in.cdt_val.int16_val);
-        case metaffi_int32_type: return Integer::New(iso,  (int32_t)in.cdt_val.int32_val);
+        // integers up to 32-bit: V8 Integer
+        case metaffi_int8_type:   return Integer::New(iso,  (int32_t)in.cdt_val.int8_val);
+        case metaffi_int16_type:  return Integer::New(iso,  (int32_t)in.cdt_val.int16_val);
+        case metaffi_int32_type:  return Integer::New(iso,  (int32_t)in.cdt_val.int32_val);
         case metaffi_uint8_type:  return Integer::NewFromUnsigned(iso, (uint32_t)in.cdt_val.uint8_val);
         case metaffi_uint16_type: return Integer::NewFromUnsigned(iso, (uint32_t)in.cdt_val.uint16_val);
         case metaffi_uint32_type: return Integer::NewFromUnsigned(iso, (uint32_t)in.cdt_val.uint32_val);
 
-        case metaffi_int64_type:
-            return BigInt::New(iso, (int64_t)in.cdt_val.int64_val);
-        case metaffi_uint64_type:
-            return BigInt::NewFromUnsigned(iso, (uint64_t)in.cdt_val.uint64_val);
+        // 64-bit → BigInt לשמירת דיוק
+        case metaffi_int64_type:  return BigInt::New(iso, (int64_t)in.cdt_val.int64_val);
+        case metaffi_uint64_type: return BigInt::NewFromUnsigned(iso, (uint64_t)in.cdt_val.uint64_val);
 
-        case metaffi_float32_type:
-            return Number::New(iso, (double)in.cdt_val.float32_val);
-        case metaffi_float64_type:
-            return Number::New(iso, (double)in.cdt_val.float64_val);
+        // floats
+        case metaffi_float32_type: return Number::New(iso, (double)in.cdt_val.float32_val);
+        case metaffi_float64_type: return Number::New(iso, (double)in.cdt_val.float64_val);
 
         case metaffi_string8_type: {
-            // In your SDK, string8 is a pointer (metaffi_string8 == char8_t*).
-            // Cast to const char* for UTF-8 creation.
             const char* s = reinterpret_cast<const char*>(in.cdt_val.string8_val);
             return make_utf8(iso, s);
         }
 
-        // Arrays/objects: not needed for add_ints MVP; add later if required.
         default:
             set_err(out_err, "cdt_to_v8: unsupported CDT type");
             return Undefined(iso);
@@ -70,7 +66,7 @@ bool cdts_to_v8_argv(const v8_conv_opts& o, const cdts& in, std::vector<Local<Va
     return true;
 }
 
-// ---------- V8 -> CDT ----------
+// ---------- V8 -> CDT (generic) ----------
 void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err){
     Isolate* iso = o.isolate;
     Local<Context> ctx = o.ctx;
@@ -94,7 +90,6 @@ void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
     if(in->IsBigInt()){
         bool lossless = false;
         int64_t v = in.As<BigInt>()->Int64Value(&lossless);
-        // If not lossless, you can set_err; for add_ints we don't expect BigInt anyway.
         out->type = metaffi_int64_type;
         out->cdt_val.int64_val = v;
         return;
@@ -112,7 +107,6 @@ void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
         if(n) std::memcpy(mem, *s, n);
         mem[n] = '\0';
         out->type = metaffi_string8_type;
-        // assign char* to metaffi_string8 (char8_t*); cast as needed
         out->cdt_val.string8_val = reinterpret_cast<metaffi_string8>(mem);
         out->free_required = 1;
         return;
@@ -121,80 +115,50 @@ void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
     set_err(out_err, "v8_to_cdt: unsupported JS type");
 }
 
-// Write a single V8 value into cdts (supports len == 1)
-bool v8_value_to_cdts(const v8_conv_opts& o, v8::Local<v8::Value> in, cdts& out, char** out_err){
-    // Ensure at least one slot in 'out' (CDTS fix)
-    if(out.length == 0){
-        new (&out) cdts(1, /*fixed_dimensions*/ 1); // placement-new
-    }
-
-    // We keep it simple: single return into slot 0 as int32
-    cdt* slot0 = &out[0];
-    slot0->free_required = 0;
-    slot0->type = metaffi_int32_type;
-
-    if(in->IsInt32()){
-        slot0->cdt_val.int32_val = in.As<v8::Int32>()->Value();
-        return true;
-    }
-    if(in->IsNumber()){
-        double d = in.As<v8::Number>()->Value();
-        slot0->cdt_val.int32_val = static_cast<int32_t>(d); // truncate toward zero
-        return true;
-    }
-    if(in->IsBigInt()){
-        bool ok = false;
-        int64_t v = in.As<v8::BigInt>()->Int64Value(&ok);
-        if(!ok){ if(out_err) *out_err = strdup("BigInt not convertible to int32"); return false; }
-        slot0->cdt_val.int32_val = static_cast<int32_t>(v);
-        return true;
-    }
-
-    // Unsupported type as return – write 0 to prove we wrote something
-    slot0->cdt_val.int32_val = 0;
-    return true;
-}
-
-
+// ---------- V8 -> CDT לפי טיפוס מבוקש ----------
 bool v8_to_cdt_as_type(const v8_conv_opts& o,
                        v8::Local<v8::Value> in,
                        const metaffi_type_info& dst,
                        cdt* out,
                        char** out_err)
 {
-    using namespace v8;
     out->free_required = 0;
 
     switch (dst.type)
     {
+        case metaffi_bool_type:
+        {
+            // שימוש ב-JS ToBoolean (כולל המרות מ-Number/BigInt/Object לפי כללי JS)
+            bool b = in->BooleanValue(o.isolate);
+            out->type = metaffi_bool_type;
+            out->cdt_val.bool_val = b ? 1 : 0;
+            return true;
+        }
+        // --- signed integers ---
+        case metaffi_int8_type:
+        case metaffi_int16_type:
         case metaffi_int32_type:
         {
-            if (in->IsInt32()) {
-                out->type = dst.type; // IMPORTANT
-                out->cdt_val.int32_val = in.As<Int32>()->Value();
-                return true;
+            double d = in->NumberValue(o.ctx).ToChecked();
+            if (std::isnan(d) || std::isinf(d)) { set_err(out_err, "ret Number is NaN/Inf"); return false; }
+            long long v = (long long)d; // trunc toward 0
+            if (dst.type == metaffi_int8_type &&
+                (v < std::numeric_limits<int8_t>::min() || v > std::numeric_limits<int8_t>::max())) {
+                set_err(out_err,"ret out of int8 range"); return false;
             }
-            if (in->IsBigInt()) {
-                bool ok = false;
-                int64_t v = in.As<BigInt>()->Int64Value(&ok);
-                if (!ok) { set_err(out_err, "ret BigInt not in int32 range"); return false; }
-                if (v < std::numeric_limits<int32_t>::min()) v = std::numeric_limits<int32_t>::min();
-                if (v > std::numeric_limits<int32_t>::max()) v = std::numeric_limits<int32_t>::max();
-                out->type = dst.type; // IMPORTANT
-                out->cdt_val.int32_val = static_cast<int32_t>(v);
-                return true;
+            if (dst.type == metaffi_int16_type &&
+                (v < std::numeric_limits<int16_t>::min() || v > std::numeric_limits<int16_t>::max())) {
+                set_err(out_err,"ret out of int16 range"); return false;
             }
-            if (in->IsNumber()) {
-                double d = in.As<Number>()->NumberValue(o.ctx).ToChecked();
-                if (std::isnan(d) || std::isinf(d)) { set_err(out_err, "ret Number is NaN/Inf"); return false; }
-                if (d < (double)std::numeric_limits<int32_t>::min()) d = (double)std::numeric_limits<int32_t>::min();
-                if (d > (double)std::numeric_limits<int32_t>::max()) d = (double)std::numeric_limits<int32_t>::max();
-                out->type = dst.type; // IMPORTANT
-                out->cdt_val.int32_val = static_cast<int32_t>(d); // trunc toward zero
-                return true;
+            if (dst.type == metaffi_int32_type &&
+                (v < std::numeric_limits<int32_t>::min() || v > std::numeric_limits<int32_t>::max())) {
+                set_err(out_err,"ret out of int32 range"); return false;
             }
-            set_err(out_err, "ret not Number/BigInt for int32");
-            return false;
+            out->type = dst.type;
+            if (dst.type == metaffi_int8_type)   out->cdt_val.int8_val  = (int8_t)v;
+            if (dst.type == metaffi_int16_type)  out->cdt_val.int16_val = (int16_t)v;
+            if (dst.type == metaffi_int32_type)  out->cdt_val.int32_val = (int32_t)v;
+            return true;
         }
 
         case metaffi_int64_type:
@@ -203,62 +167,85 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
                 bool ok = false;
                 int64_t v = in.As<BigInt>()->Int64Value(&ok);
                 if (!ok) { set_err(out_err, "BigInt conversion failed"); return false; }
-                out->type = dst.type; // IMPORTANT
+                out->type = dst.type;
                 out->cdt_val.int64_val = v;
                 return true;
             }
-            if (in->IsInt32() || in->IsNumber()) {
-                double d = in->NumberValue(o.ctx).ToChecked();
-                if (std::isnan(d) || std::isinf(d)) { set_err(out_err, "ret Number is NaN/Inf"); return false; }
-                // trunc toward zero + range check
-                if (d < (double)std::numeric_limits<int64_t>::min() || d > (double)std::numeric_limits<int64_t>::max()) {
-                    set_err(out_err, "ret Number out of int64 range"); return false;
-                }
-                out->type = dst.type; // IMPORTANT
-                out->cdt_val.int64_val = static_cast<int64_t>(d);
-                return true;
+            double d = in->NumberValue(o.ctx).ToChecked();
+            if (std::isnan(d) || std::isinf(d)) { set_err(out_err, "ret Number is NaN/Inf"); return false; }
+            if (d < (double)std::numeric_limits<int64_t>::min() || d > (double)std::numeric_limits<int64_t>::max()) {
+                set_err(out_err, "ret Number out of int64 range"); return false;
             }
-            set_err(out_err, "ret not Number/BigInt for int64");
-            return false;
+            out->type = dst.type;
+            out->cdt_val.int64_val = (int64_t)d;
+            return true;
         }
 
+        // --- unsigned integers ---
+        case metaffi_uint8_type:
+        case metaffi_uint16_type:
+        case metaffi_uint32_type:
+        {
+            double d = in->NumberValue(o.ctx).ToChecked();
+            if (std::isnan(d) || std::isinf(d) || d < 0.0) { set_err(out_err,"ret negative/NaN/Inf for unsigned"); return false; }
+            unsigned long long u = (unsigned long long)d; // trunc toward 0
+            if (dst.type == metaffi_uint8_type  && u > std::numeric_limits<uint8_t>::max())  { set_err(out_err,"ret out of uint8 range");  return false; }
+            if (dst.type == metaffi_uint16_type && u > std::numeric_limits<uint16_t>::max()) { set_err(out_err,"ret out of uint16 range"); return false; }
+            if (dst.type == metaffi_uint32_type && u > std::numeric_limits<uint32_t>::max()) { set_err(out_err,"ret out of uint32 range"); return false; }
+            out->type = dst.type;
+            if (dst.type == metaffi_uint8_type)   out->cdt_val.uint8_val  = (uint8_t)u;
+            if (dst.type == metaffi_uint16_type)  out->cdt_val.uint16_val = (uint16_t)u;
+            if (dst.type == metaffi_uint32_type)  out->cdt_val.uint32_val = (uint32_t)u;
+            return true;
+        }
+
+        case metaffi_uint64_type:
+        {
+            if (in->IsBigInt()) {
+                bool ok=false; uint64_t u = in.As<BigInt>()->Uint64Value(&ok);
+                if(!ok){ set_err(out_err,"BigInt conversion failed"); return false; }
+                out->type = dst.type; out->cdt_val.uint64_val = u; return true;
+            }
+            double d = in->NumberValue(o.ctx).ToChecked();
+            if (std::isnan(d) || std::isinf(d) || d < 0.0 || d > (double)std::numeric_limits<uint64_t>::max()){
+                set_err(out_err,"ret Number out of uint64 range"); return false;
+            }
+            out->type = dst.type; out->cdt_val.uint64_val = (uint64_t)d; return true;
+        }
+
+        case metaffi_float32_type:
+        {
+            double d = in->NumberValue(o.ctx).ToChecked();
+            if (std::isnan(d) || std::isinf(d)) {
+                set_err(out_err, "ret Number is NaN/Inf");
+                return false;
+            }
+            // בדיקת טווח ל-float32
+            if (d > static_cast<double>(std::numeric_limits<float>::max()) ||
+                d < static_cast<double>(-std::numeric_limits<float>::max())) {
+                set_err(out_err, "ret Number out of float32 range");
+                return false;
+                }
+            out->type = metaffi_float32_type;
+            out->cdt_val.float32_val = static_cast<float>(d);
+            return true;
+        }
+
+        // --- float64 (שמיש במקרה שאתה מבקש החזר כפול) ---
         case metaffi_float64_type:
         {
-            if (!in->IsNumber() && !in->IsInt32() && !in->IsBigInt()) {
-                set_err(out_err, "ret not Number for float64"); return false;
-            }
-            double d = 0.0;
-            if (in->IsBigInt()) {
-                bool ok=false; int64_t v = in.As<BigInt>()->Int64Value(&ok);
-                if (!ok) { set_err(out_err, "BigInt->float64 failed"); return false; }
-                d = (double)v;
-            } else {
-                d = in->NumberValue(o.ctx).ToChecked();
-            }
-            out->type = dst.type; // IMPORTANT
+            double d = in->NumberValue(o.ctx).ToChecked();
+            if (std::isnan(d) || std::isinf(d)) { set_err(out_err, "ret Number is NaN/Inf"); return false; }
+            out->type = dst.type;
             out->cdt_val.float64_val = d;
             return true;
         }
 
+        // --- fallback גנרי (מחרוזות, null, וכו') ---
         default:
-            // Fallback generic
             v8_to_cdt(o, in, out, out_err);
-            // Make sure type stays consistent with dst if generic picked a different numeric type:
-            if (!(out_err && *out_err) && (out->type == metaffi_int32_type || out->type == metaffi_int64_type || out->type == metaffi_float64_type)) {
-                // prefer exact dst.type if it's numeric
-                if (dst.type == metaffi_int32_type && out->type != metaffi_int32_type) {
-                    int32_t v = (int32_t)out->cdt_val.float64_val;
-                    out->type = dst.type; out->cdt_val.int32_val = v;
-                } else if (dst.type == metaffi_int64_type && out->type != metaffi_int64_type) {
-                    int64_t v = (int64_t)out->cdt_val.float64_val;
-                    out->type = dst.type; out->cdt_val.int64_val = v;
-                } else if (dst.type == metaffi_float64_type && out->type != metaffi_float64_type) {
-                    double v = (out->type == metaffi_int32_type) ? (double)out->cdt_val.int32_val
-                                                                 : (out->type == metaffi_int64_type) ? (double)out->cdt_val.int64_val
-                                                                                                      : out->cdt_val.float64_val;
-                    out->type = dst.type; out->cdt_val.float64_val = v;
-                }
-            }
             return !(out_err && *out_err);
     }
 }
+
+
