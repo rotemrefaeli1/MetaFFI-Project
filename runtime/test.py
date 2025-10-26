@@ -120,10 +120,27 @@ ret_bb    = [mt.metaffi_type_info(mt.MetaFFITypes.metaffi_bool_type)]
 and_bool = mod_bool.load_entity('callable=and_bool', params_bb, ret_bb)
 print("and_bool(True, False) =", and_bool(True, False))
 
+
+# --- string utf8 (stringTest.js) ---
+mod_str = rt.load_module('stringTest.js')
+
+str_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_string8_type)
+
+# echo: str -> str
+echo = mod_str.load_entity('callable=echo', [str_t], [str_t])
+print("echo('hello metaffi')  =", echo("hello metaffi"))
+print("echo('metaffi ')    =", echo("metaffi "))
+
+# greet: str -> str
+greet = mod_str.load_entity('callable=greet', [str_t], [str_t])
+print("greet('Sagi')          =", greet("Sagi"))
+
+
 # --- ניקוי ---
-del add_ints, add_ints64, add_f32, add_f64, invert_bool, and_bool
-del mod_add, mod_bool
+del hello, add_ints, add_ints64, add_f32, add_f64, invert_bool, and_bool, echo, greet
+del mod_add, mod_bool, mod_str, mod_hello
 rt.release_runtime_plugin()
 del rt
+
 
 #working

@@ -240,6 +240,24 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
             out->cdt_val.float64_val = d;
             return true;
         }
+        case metaffi_string8_type:
+        {
+            v8::String::Utf8Value s(o.isolate, in);
+            size_t n = (*s ? std::strlen(*s) : 0);
+            char* mem = (char*)std::malloc(n + 1);
+            if(!mem){
+                set_err(out_err, "v8_to_cdt_as_type: OOM on string");
+                return false;
+            }
+            if(n) std::memcpy(mem, *s, n);
+            mem[n] = '\0';
+
+            out->type = metaffi_string8_type;
+            out->cdt_val.string8_val = reinterpret_cast<metaffi_string8>(mem);
+            out->free_required = 1;
+            return true;
+        }
+
 
         // --- fallback גנרי (מחרוזות, null, וכו') ---
         default:

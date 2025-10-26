@@ -329,11 +329,7 @@ static void inject_console(v8::Isolate* isolate, v8::Local<v8::Context> context)
             // למסך (stdout של התהליך)
             std::cout << line << std::endl;
 
-            // אופציונלי: גם לקובץ כדי שתוכל לקרוא מה-Java/Python
-            try{
-                std::ofstream out("/workspace/runtime/hello_output.txt", std::ios::app);
-                out << line << "\n";
-            } catch(...) {}
+
         }).ToLocalChecked();
 
     console->Set(context,
