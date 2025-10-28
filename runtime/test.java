@@ -28,6 +28,7 @@ public class test {
             MetaFFIModule helloModule = runtime.loadModule("/workspace/runtime/hello.js");
             MetaFFIModule addModule   = runtime.loadModule("/workspace/runtime/add.js");
             MetaFFIModule boolModule  = runtime.loadModule("/workspace/runtime/booleanTest.js");
+            MetaFFIModule strModule = runtime.loadModule("/workspace/runtime/stringTest.js");
             System.out.println("Java: modules loaded");
 
             // -------------------- helloMetaFFI (no params, no return) --------------------
@@ -134,6 +135,42 @@ public class test {
                 System.out.println("and_bool -> " + vAnd);
             } catch (Exception e) {
                 System.err.println("Error calling and_bool: " + e.getMessage());
+                e.printStackTrace();
+            }
+            // -------------------- echo (string8 -> string8) --------------------
+            try {
+                MetaFFITypeInfo str8 = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIString8);
+                MetaFFITypeInfo[] params_str = new MetaFFITypeInfo[]{ str8 };
+                MetaFFITypeInfo[] rets_str   = new MetaFFITypeInfo[]{ str8 };
+
+                Caller echo = strModule.load("callable=echo", params_str, rets_str);
+                System.out.println("\nCalling echo('hello metaffi') ...");
+                Object rawEcho1 = echo.call("hello metaffi");
+                Object vEcho1 = unwrapSingleReturn(rawEcho1);
+                System.out.println("echo('hello metaffi') -> " + vEcho1);
+
+                System.out.println("Calling echo('metaffi ') ...");
+                Object rawEcho2 = echo.call("metaffi ");
+                Object vEcho2 = unwrapSingleReturn(rawEcho2);
+                System.out.println("echo('metaffi ') -> " + vEcho2);
+            } catch (Exception e) {
+                System.err.println("Error calling echo: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            // -------------------- greet (string8 -> string8) --------------------
+            try {
+                MetaFFITypeInfo str8 = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIString8);
+                MetaFFITypeInfo[] params_str = new MetaFFITypeInfo[]{ str8 };
+                MetaFFITypeInfo[] rets_str   = new MetaFFITypeInfo[]{ str8 };
+
+                Caller greet = strModule.load("callable=greet", params_str, rets_str);
+                System.out.println("\nCalling greet('Sagi') ...");
+                Object rawGreet = greet.call("Sagi");
+                Object vGreet = unwrapSingleReturn(rawGreet);
+                System.out.println("greet('Sagi') -> " + vGreet);
+            } catch (Exception e) {
+                System.err.println("Error calling greet: " + e.getMessage());
                 e.printStackTrace();
             }
 
