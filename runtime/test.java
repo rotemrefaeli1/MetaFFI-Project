@@ -24,16 +24,13 @@ public class test {
             runtime.loadRuntimePlugin();
             System.out.println("Java: runtime.loadRuntimePlugin() done");
 
-            // Load modules
-            MetaFFIModule helloModule = runtime.loadModule("/workspace/runtime/hello.js");
-            MetaFFIModule addModule   = runtime.loadModule("/workspace/runtime/add.js");
-            MetaFFIModule boolModule  = runtime.loadModule("/workspace/runtime/booleanTest.js");
-            MetaFFIModule strModule = runtime.loadModule("/workspace/runtime/stringTest.js");
-            System.out.println("Java: modules loaded");
+            // Load the single unified module
+            MetaFFIModule testModule = runtime.loadModule("/workspace/runtime/TestFunctions.js");
+            System.out.println("Java: TestFunctions.js loaded");
 
             // -------------------- helloMetaFFI (no params, no return) --------------------
             try {
-                Caller hello = helloModule.load("callable=helloMetaFFI", null, null);
+                Caller hello = testModule.load("callable=helloMetaFFI", null, null);
                 System.out.println("\nCalling helloMetaFFI() ...");
                 hello.call();
                 System.out.println("helloMetaFFI() done");
@@ -45,13 +42,12 @@ public class test {
             // -------------------- add_ints (int32,int32) -> int32 --------------------
             try {
                 MetaFFITypeInfo int32 = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIInt32);
-                MetaFFITypeInfo[] add_ints_params = new MetaFFITypeInfo[]{ int32, int32 };
-                MetaFFITypeInfo[] add_ints_rets   = new MetaFFITypeInfo[]{ int32 };
+                MetaFFITypeInfo[] params = new MetaFFITypeInfo[]{ int32, int32 };
+                MetaFFITypeInfo[] rets   = new MetaFFITypeInfo[]{ int32 };
 
-                Caller addInts = addModule.load("callable=add_ints", add_ints_params, add_ints_rets);
+                Caller addInts = testModule.load("callable=add_ints", params, rets);
                 System.out.println("\nCalling add_ints(7, 5) ...");
-                Object raw = addInts.call(7, 5);
-                Object val = unwrapSingleReturn(raw);
+                Object val = unwrapSingleReturn(addInts.call(7, 5));
                 System.out.println("add_ints -> " + val);
             } catch (Exception e) {
                 System.err.println("Error calling add_ints: " + e.getMessage());
@@ -64,10 +60,9 @@ public class test {
                 MetaFFITypeInfo[] params64 = new MetaFFITypeInfo[]{ int64, int64 };
                 MetaFFITypeInfo[] rets64   = new MetaFFITypeInfo[]{ int64 };
 
-                Caller addInts64 = addModule.load("callable=add_ints64", params64, rets64);
+                Caller addInts64 = testModule.load("callable=add_ints64", params64, rets64);
                 System.out.println("\nCalling add_ints64(10000000000, 25000000000) ...");
-                Object raw64 = addInts64.call(10000000000L, 25000000000L);
-                Object v64 = unwrapSingleReturn(raw64);
+                Object v64 = unwrapSingleReturn(addInts64.call(10000000000L, 25000000000L));
                 System.out.println("add_ints64 -> " + v64);
             } catch (Exception e) {
                 System.err.println("Error calling add_ints64: " + e.getMessage());
@@ -77,13 +72,12 @@ public class test {
             // -------------------- add_f32 (float32,float32) -> float32 --------------------
             try {
                 MetaFFITypeInfo f32 = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIFloat32);
-                MetaFFITypeInfo[] params_f32 = new MetaFFITypeInfo[]{ f32, f32 };
-                MetaFFITypeInfo[] rets_f32   = new MetaFFITypeInfo[]{ f32 };
+                MetaFFITypeInfo[] params = new MetaFFITypeInfo[]{ f32, f32 };
+                MetaFFITypeInfo[] rets   = new MetaFFITypeInfo[]{ f32 };
 
-                Caller addF32 = addModule.load("callable=add_f32", params_f32, rets_f32);
+                Caller addF32 = testModule.load("callable=add_f32", params, rets);
                 System.out.println("\nCalling add_f32(1.5f, 2.25f) ...");
-                Object rawf32 = addF32.call(1.5f, 2.25f);
-                Object vf32 = unwrapSingleReturn(rawf32);
+                Object vf32 = unwrapSingleReturn(addF32.call(1.5f, 2.25f));
                 System.out.println("add_f32 -> " + vf32);
             } catch (Exception e) {
                 System.err.println("Error calling add_f32: " + e.getMessage());
@@ -93,13 +87,12 @@ public class test {
             // -------------------- add_f64 (float64,float64) -> float64 --------------------
             try {
                 MetaFFITypeInfo f64 = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIFloat64);
-                MetaFFITypeInfo[] params_f64 = new MetaFFITypeInfo[]{ f64, f64 };
-                MetaFFITypeInfo[] rets_f64   = new MetaFFITypeInfo[]{ f64 };
+                MetaFFITypeInfo[] params = new MetaFFITypeInfo[]{ f64, f64 };
+                MetaFFITypeInfo[] rets   = new MetaFFITypeInfo[]{ f64 };
 
-                Caller addF64 = addModule.load("callable=add_f64", params_f64, rets_f64);
+                Caller addF64 = testModule.load("callable=add_f64", params, rets);
                 System.out.println("\nCalling add_f64(3.14, 2.71) ...");
-                Object rawf64 = addF64.call(3.14, 2.71);
-                Object vf64 = unwrapSingleReturn(rawf64);
+                Object vf64 = unwrapSingleReturn(addF64.call(3.14, 2.71));
                 System.out.println("add_f64 -> " + vf64);
             } catch (Exception e) {
                 System.err.println("Error calling add_f64: " + e.getMessage());
@@ -109,13 +102,12 @@ public class test {
             // -------------------- invert_bool (bool) -> bool --------------------
             try {
                 MetaFFITypeInfo boolt = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIBool);
-                MetaFFITypeInfo[] params_bool = new MetaFFITypeInfo[]{ boolt };
-                MetaFFITypeInfo[] rets_bool   = new MetaFFITypeInfo[]{ boolt };
+                MetaFFITypeInfo[] params = new MetaFFITypeInfo[]{ boolt };
+                MetaFFITypeInfo[] rets   = new MetaFFITypeInfo[]{ boolt };
 
-                Caller inv = boolModule.load("callable=invert_bool", params_bool, rets_bool);
+                Caller inv = testModule.load("callable=invert_bool", params, rets);
                 System.out.println("\nCalling invert_bool(true) ...");
-                Object rawInv = inv.call(true);
-                Object vInv = unwrapSingleReturn(rawInv);
+                Object vInv = unwrapSingleReturn(inv.call(true));
                 System.out.println("invert_bool -> " + vInv);
             } catch (Exception e) {
                 System.err.println("Error calling invert_bool: " + e.getMessage());
@@ -125,33 +117,31 @@ public class test {
             // -------------------- and_bool (bool,bool) -> bool --------------------
             try {
                 MetaFFITypeInfo boolt = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIBool);
-                MetaFFITypeInfo[] params_and = new MetaFFITypeInfo[]{ boolt, boolt };
-                MetaFFITypeInfo[] rets_and   = new MetaFFITypeInfo[]{ boolt };
+                MetaFFITypeInfo[] params = new MetaFFITypeInfo[]{ boolt, boolt };
+                MetaFFITypeInfo[] rets   = new MetaFFITypeInfo[]{ boolt };
 
-                Caller andb = boolModule.load("callable=and_bool", params_and, rets_and);
+                Caller andb = testModule.load("callable=and_bool", params, rets);
                 System.out.println("\nCalling and_bool(true, false) ...");
-                Object rawAnd = andb.call(true, false);
-                Object vAnd = unwrapSingleReturn(rawAnd);
+                Object vAnd = unwrapSingleReturn(andb.call(true, false));
                 System.out.println("and_bool -> " + vAnd);
             } catch (Exception e) {
                 System.err.println("Error calling and_bool: " + e.getMessage());
                 e.printStackTrace();
             }
+
             // -------------------- echo (string8 -> string8) --------------------
             try {
                 MetaFFITypeInfo str8 = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIString8);
-                MetaFFITypeInfo[] params_str = new MetaFFITypeInfo[]{ str8 };
-                MetaFFITypeInfo[] rets_str   = new MetaFFITypeInfo[]{ str8 };
+                MetaFFITypeInfo[] params = new MetaFFITypeInfo[]{ str8 };
+                MetaFFITypeInfo[] rets   = new MetaFFITypeInfo[]{ str8 };
 
-                Caller echo = strModule.load("callable=echo", params_str, rets_str);
+                Caller echo = testModule.load("callable=echo", params, rets);
                 System.out.println("\nCalling echo('hello metaffi') ...");
-                Object rawEcho1 = echo.call("hello metaffi");
-                Object vEcho1 = unwrapSingleReturn(rawEcho1);
+                Object vEcho1 = unwrapSingleReturn(echo.call("hello metaffi"));
                 System.out.println("echo('hello metaffi') -> " + vEcho1);
 
                 System.out.println("Calling echo('metaffi ') ...");
-                Object rawEcho2 = echo.call("metaffi ");
-                Object vEcho2 = unwrapSingleReturn(rawEcho2);
+                Object vEcho2 = unwrapSingleReturn(echo.call("metaffi "));
                 System.out.println("echo('metaffi ') -> " + vEcho2);
             } catch (Exception e) {
                 System.err.println("Error calling echo: " + e.getMessage());
@@ -161,13 +151,12 @@ public class test {
             // -------------------- greet (string8 -> string8) --------------------
             try {
                 MetaFFITypeInfo str8 = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIString8);
-                MetaFFITypeInfo[] params_str = new MetaFFITypeInfo[]{ str8 };
-                MetaFFITypeInfo[] rets_str   = new MetaFFITypeInfo[]{ str8 };
+                MetaFFITypeInfo[] params = new MetaFFITypeInfo[]{ str8 };
+                MetaFFITypeInfo[] rets   = new MetaFFITypeInfo[]{ str8 };
 
-                Caller greet = strModule.load("callable=greet", params_str, rets_str);
+                Caller greet = testModule.load("callable=greet", params, rets);
                 System.out.println("\nCalling greet('Sagi') ...");
-                Object rawGreet = greet.call("Sagi");
-                Object vGreet = unwrapSingleReturn(rawGreet);
+                Object vGreet = unwrapSingleReturn(greet.call("Sagi"));
                 System.out.println("greet('Sagi') -> " + vGreet);
             } catch (Exception e) {
                 System.err.println("Error calling greet: " + e.getMessage());

@@ -1,10 +1,14 @@
+function helloMetaFFI() {
+    console.log("Hello from Node.js via MetaFFI!");
+
+}
+
 // Force int32 on inputs and result
 // add.js
 function add_ints(a, b) {
     // Force Number so BigInt from V8 לא יפיל |0
     return (Number(a) | 0) + (Number(b) | 0) | 0;
 }
-// globalThis.add_ints = add_ints;
 
 
 //******************************another type for checking
@@ -12,7 +16,6 @@ function add_ints(a, b) {
 function add_ints64(a, b) {
     return BigInt(a) + BigInt(b);
 }
-// globalThis.add_ints64 = add_ints64;
 
 
 // --- FLOATS ---
@@ -23,11 +26,27 @@ function add_f32(a, b) {
     const y = Math.fround(Number(b));
     return Math.fround(x + y);
 }
-// globalThis.add_f32 = add_f32;
 
 // float64: Number רגיל (double precision)
 function add_f64(a, b) {
     return Number(a) + Number(b);
 }
-// globalThis.add_f64 = add_f64;
+
+// פונקציה לבדיקת bool: הופכת אמת/שקר
+function invert_bool(b) {
+    return !Boolean(b);
+}
+
+// אופציונלי: גם AND לוגי
+function and_bool(a, b) {
+    return Boolean(a) && Boolean(b);
+}
+
+function echo(s) {
+    return s;
+}
+
+function greet(name) {
+    return `Hello, ${name}!`;
+}
 
