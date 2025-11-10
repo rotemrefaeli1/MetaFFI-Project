@@ -6,5 +6,5 @@ function greet(name) {
     return `Hello, ${name}!`;
 }
 
-globalThis.echo  = echo;
-globalThis.greet = greet;
+// globalThis.echo  = echo;
+// globalThis.greet = greet;

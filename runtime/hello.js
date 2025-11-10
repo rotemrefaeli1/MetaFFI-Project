@@ -3,4 +3,4 @@ function helloMetaFFI() {
 
 }
 
-globalThis.helloMetaFFI = helloMetaFFI;
+// globalThis.helloMetaFFI = helloMetaFFI;
