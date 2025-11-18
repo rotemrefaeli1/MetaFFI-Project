@@ -54,3 +54,13 @@ function greet(name) {
     return `Hello, ${name}!`;
 }
 
+function to_upper_char(c) {
+    // נוודא שמקבלים string
+    if (typeof c !== 'string') {
+        c = String(c);
+    }
+    if (c.length === 0) {
+        return "";
+    }
+    return c[0].toUpperCase();
+}

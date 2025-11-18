@@ -94,8 +94,21 @@ greet = mod.load_entity('callable=greet', [str_t], [str_t])
 print("====greet====")
 print("greet('Sagi') =", greet("Sagi"))
 
+
+# --- char8: to_upper_char ---
+char_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_char8_type)
+
+to_upper_char = mod.load_entity(
+    'callable=to_upper_char',
+    [char_t],      # פרמטר אחד מסוג char8
+    [char_t]       # החזרה char8
+)
+
+print("====to_upper_char====")
+print("to_upper_char('a') =", to_upper_char('a'))
+
 # --- cleanup ---
-del hello, add_ints, add_ints64, add_f32, add_f64, div_i64, invert_bool, and_bool, echo, greet
+del hello, add_ints, add_ints64, add_f32, add_f64, div_i64, invert_bool, and_bool, echo, greet, to_upper_char
 del mod
 
 rt.release_runtime_plugin()

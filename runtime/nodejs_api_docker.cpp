@@ -226,6 +226,134 @@ extern "C" void xcall_nodejs_no_params_no_ret(void* context_ptr, char** out_err)
     }
 }
 
+// --------- XCall: no-params / with-ret ---------
+// ABI: context_ptr + cdts* (returns) + out_err
+extern "C" void xcall_no_params_ret(void* context_ptr, cdts* rets, char** out_err) noexcept
+{
+    if(out_err) *out_err = nullptr;
+    if(!context_ptr){ set_err(out_err,"null context"); return; }
+
+    auto* ctx = static_cast<NodeJSContext*>(context_ptr);
+    Isolate* iso = ctx->isolate;
+    if(!iso){ set_err(out_err,"null isolate"); return; }
+
+    v8::Locker locker(iso);
+    Isolate::Scope iso_scope(iso);
+    HandleScope hs(iso);
+    Local<Context> context = ctx->context->Get(iso);
+    Context::Scope cs(context);
+
+    v8_conv_opts opts{ iso, context };
+
+    TryCatch tc(iso);
+    Local<Function> func = ctx->function->Get(iso);
+    if(func.IsEmpty()){ set_err(out_err,"empty function"); return; }
+
+    Local<Value> js_ret;
+    if(!func->Call(context, context->Global(), 0, nullptr).ToLocal(&js_ret)){
+        if(!out_err){
+            std::cerr << "[nodejs] ERROR PATH: out_err == NULL (caller didn't supply error sink)" << std::endl;
+        } else {
+            std::string emsg;
+            build_v8_exception_string(iso, context, tc, emsg, /*include_stack=*/true);
+            std::cerr << "[nodejs] caught JS exception: " << emsg << std::endl;
+            *out_err = strdup(emsg.c_str());
+            if(!*out_err){
+                std::cerr << "[nodejs] WARNING: strdup failed, *out_err is NULL" << std::endl;
+            }
+        }
+        tc.Reset();
+        return;
+    }
+
+    // אם לא הוצהר ערך חזרה – אין מה למלא
+    if(ctx->retval_count == 0) return;
+    if(!rets){ set_err(out_err,"null returns cdts pointer"); return; }
+
+    // לדאוג שיש מספיק סלוטים ב-rets
+    if(rets->length < ctx->retval_count){
+        new (rets) cdts((metaffi_size)ctx->retval_count, /*fixed_dimensions*/ 1);
+    }
+
+    if(ctx->retval_count == 1){
+        if(!v8_to_cdt_as_type(opts, js_ret, ctx->ret_types[0], &(*rets)[0], out_err)){
+            return;
+        }
+    } else {
+        if(!js_ret->IsArray()){
+            set_err(out_err, "JS did not return an Array for multiple return values");
+            return;
+        }
+        Local<Array> arr = js_ret.As<Array>();
+        for(int i = 0; i < ctx->retval_count; ++i){
+            Local<Value> ri;
+            if(!arr->Get(context, i).ToLocal(&ri)){
+                set_err(out_err, "Failed reading return array element");
+                return;
+            }
+            if(!v8_to_cdt_as_type(opts, ri, ctx->ret_types[i], &(*rets)[i], out_err)){
+                return;
+            }
+        }
+    }
+}
+
+// --------- XCall: params / no-ret ---------
+// ABI: context_ptr + cdts* (params) + out_err
+extern "C" void xcall_params_no_ret(void* context_ptr, cdts* params, char** out_err) noexcept
+{
+    if(out_err) *out_err = nullptr;
+    if(!context_ptr){ set_err(out_err,"null context"); return; }
+
+    auto* ctx = static_cast<NodeJSContext*>(context_ptr);
+    Isolate* iso = ctx->isolate;
+    if(!iso){ set_err(out_err,"null isolate"); return; }
+
+    v8::Locker locker(iso);
+    Isolate::Scope iso_scope(iso);
+    HandleScope hs(iso);
+    Local<Context> context = ctx->context->Get(iso);
+    Context::Scope cs(context);
+
+    if(!params){
+        set_err(out_err, "null params cdts pointer");
+        return;
+    }
+
+    v8_conv_opts opts{ iso, context };
+
+    // CDT params -> argv
+    std::vector<Local<Value>> argv;
+    if(!cdts_to_v8_argv(opts, *params, argv, out_err)){
+        return;
+    }
+
+    TryCatch tc(iso);
+    Local<Function> func = ctx->function->Get(iso);
+    if(func.IsEmpty()){ set_err(out_err,"empty function"); return; }
+
+    Local<Value> js_ret;
+    if(!func->Call(context, context->Global(),
+                   static_cast<int>(argv.size()), argv.data()).ToLocal(&js_ret)){
+        if(!out_err){
+            std::cerr << "[nodejs] ERROR PATH: out_err == NULL (caller didn't supply error sink)" << std::endl;
+        } else {
+            std::string emsg;
+            build_v8_exception_string(iso, context, tc, emsg, /*include_stack=*/true);
+            std::cerr << "[nodejs] caught JS exception: " << emsg << std::endl;
+            *out_err = strdup(emsg.c_str());
+            if(!*out_err){
+                std::cerr << "[nodejs] WARNING: strdup failed, *out_err is NULL" << std::endl;
+            }
+        }
+        tc.Reset();
+        return;
+    }
+
+    // אין ערכי חזרה – מתעלמים מ-js_ret
+}
+
+
 // --------- XCall: params + returns ---------
 
 extern "C" void nodejs_xcall_params_ret(void* context_ptr, cdts params_ret[2], char** out_err) noexcept

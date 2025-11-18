@@ -49,6 +49,20 @@ Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err){
             const char* s = reinterpret_cast<const char*>(in.cdt_val.string8_val);
             return make_utf8(iso, s);
         }
+            // char8 -> JS string (UTF-8 of a single codepoint)
+        case metaffi_char8_type:
+        {
+            // metaffi_char8 מחזיק עד 4 בייטים של UTF-8, מרופדים ב־\0
+            const metaffi_char8& mc = in.cdt_val.char8_val;
+
+            // הופכים את ה-char8_t[] ל-char* עבור V8
+            const char8_t* u8ptr = mc.c;
+            const char* cstr = reinterpret_cast<const char*>(u8ptr);
+
+            // יש לנו כבר helper שעושה NewFromUtf8
+            return make_utf8(iso, cstr);
+        }
+
         default:
             set_err(out_err, "cdt_to_v8: unsupported CDT type");
             return Undefined(iso);
@@ -254,6 +268,43 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
             out->type = metaffi_string8_type;
             out->cdt_val.string8_val = reinterpret_cast<metaffi_string8>(mem);
             out->free_required = 1;
+            return true;
+        }
+
+        case metaffi_char8_type:
+        {
+            // תומכים גם במספר (קוד ASCII 0..127) וגם במחרוזת UTF-8 של תו אחד
+
+            // 1) אם זה מספר – נתייחס אליו כקוד ASCII
+            if (in->IsNumber()) {
+                double d = in->NumberValue(o.ctx).ToChecked();
+                if (std::isnan(d) || std::isinf(d) || d < 0.0 || d > 127.0) {
+                    set_err(out_err, "char8: numeric value out of ASCII 0..127 range");
+                    return false;
+                }
+
+                char8_t buf[2];
+                buf[0] = static_cast<char8_t>(static_cast<unsigned char>(d));
+                buf[1] = u8'\0';
+
+                out->type = metaffi_char8_type;
+                out->cdt_val.char8_val = metaffi_char8(buf); // ctor מ-UTF-8
+                return true;
+            }
+
+            // 2) אחרת – ניקח מחרוזת UTF-8 מ-JS ונמיר את ה-codepoint הראשון
+            v8::String::Utf8Value s(o.isolate, in);
+            const char* utf8 = (*s ? *s : "");
+            if (utf8[0] == '\0') {
+                set_err(out_err, "char8: cannot convert empty string to char");
+                return false;
+            }
+
+            // JS Utf8Value מחזיר מחרוזת UTF-8 – ניתן להעביר ישירות ל-metaffi_char8
+            const char8_t* u8ptr = reinterpret_cast<const char8_t*>(utf8);
+
+            out->type = metaffi_char8_type;
+            out->cdt_val.char8_val = metaffi_char8(u8ptr);
             return true;
         }
 
