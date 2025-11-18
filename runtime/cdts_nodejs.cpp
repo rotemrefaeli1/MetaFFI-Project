@@ -49,7 +49,6 @@ Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err){
             const char* s = reinterpret_cast<const char*>(in.cdt_val.string8_val);
             return make_utf8(iso, s);
         }
-
         default:
             set_err(out_err, "cdt_to_v8: unsupported CDT type");
             return Undefined(iso);

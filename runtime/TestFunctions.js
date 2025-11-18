@@ -31,7 +31,11 @@ function add_f32(a, b) {
 function add_f64(a, b) {
     return Number(a) + Number(b);
 }
+function div_i64(a, b){
+    console.log(typeof a, typeof b);
 
+    return (a / b) ;
+}
 // פונקציה לבדיקת bool: הופכת אמת/שקר
 function invert_bool(b) {
     return !Boolean(b);

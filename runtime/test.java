@@ -99,6 +99,28 @@ public class test {
                 e.printStackTrace();
             }
 
+            // -------------------- div_i64 (int64,int64) -> int64 --------------------
+            try {
+                MetaFFITypeInfo int64 = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIInt64);
+                MetaFFITypeInfo[] params64 = new MetaFFITypeInfo[]{ int64, int64 };
+                MetaFFITypeInfo[] rets64   = new MetaFFITypeInfo[]{ int64 };
+
+                Caller div_i64 = testModule.load("callable=div_i64", params64, rets64);
+
+                System.out.println("====div_i64====");
+                Object r1 = unwrapSingleReturn(div_i64.call(6L, 3L));
+                System.out.println("div_i64(6,3) -> " + r1);
+
+                // Expecting exception on division by zero (will propagate naturally)
+                Object r2 = unwrapSingleReturn(div_i64.call(5L, 0L));
+                System.out.println("div_i64(5,0) -> " + r2);
+
+            } catch (Exception e) {
+                System.err.println("Error calling div_i64: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+
             // -------------------- invert_bool (bool) -> bool --------------------
             try {
                 MetaFFITypeInfo boolt = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIBool);
