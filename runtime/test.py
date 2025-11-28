@@ -107,8 +107,51 @@ to_upper_char = mod.load_entity(
 print("====to_upper_char====")
 print("to_upper_char('a') =", to_upper_char('a'))
 
+
+# ---------------- OBJECT / HANDLE TEST ----------------
+
+print("==== OBJECT / HANDLE TEST ====")
+
+handle_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_handle_type)
+i32_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int32_type)
+
+# constructor: create_counter(start:int32) -> handle
+create_counter = mod.load_entity(
+    'callable=create_counter',
+    [i32_t],
+    [handle_t]
+)
+
+# method: counter_get(self:handle) -> int32
+counter_get = mod.load_entity(
+    'callable=counter_get',
+    [handle_t],
+    [i32_t]
+)
+
+# method: counter_inc(self:handle, delta:int32) -> int32
+counter_inc = mod.load_entity(
+    'callable=counter_inc',
+    [handle_t, i32_t],
+    [i32_t]
+)
+
+# 1. create counter starting at 10
+c = create_counter(10)
+print("handle returned from create_counter(10) =", c)
+
+# 2. check initial value
+print("counter_get(c) ->", counter_get(c))
+
+# 3. increment by 5
+print("counter_inc(c, 5) ->", counter_inc(c, 5))
+
+# 4. verify new value is 15
+print("counter_get(c) ->", counter_get(c))
+
+
 # --- cleanup ---
-del hello, add_ints, add_ints64, add_f32, add_f64, div_i64, invert_bool, and_bool, echo, greet, to_upper_char
+del hello, add_ints, add_ints64, add_f32, add_f64, div_i64, invert_bool, and_bool, echo, greet, to_upper_char, create_counter, counter_get, counter_inc,
 del mod
 
 rt.release_runtime_plugin()

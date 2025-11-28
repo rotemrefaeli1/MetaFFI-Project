@@ -184,6 +184,67 @@ public class test {
                 System.err.println("Error calling greet: " + e.getMessage());
                 e.printStackTrace();
             }
+            // -------------------- OBJECT / HANDLE TEST --------------------
+            try {
+                System.out.println("\n==== OBJECT / HANDLE TEST (Java) ====");
+
+                MetaFFITypeInfo int64 = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIInt64);
+                MetaFFITypeInfo handleType = new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIHandle);
+
+                // Load entities
+                Caller createCounter = testModule.load(
+                        "callable=create_counter",
+                        new MetaFFITypeInfo[]{ int64 },
+                        new MetaFFITypeInfo[]{ handleType }
+                );
+
+                Caller counterGet = testModule.load(
+                        "callable=counter_get",
+                        new MetaFFITypeInfo[]{ handleType },
+                        new MetaFFITypeInfo[]{ int64 }
+                );
+
+                Caller counterInc = testModule.load(
+                        "callable=counter_inc",
+                        new MetaFFITypeInfo[]{ handleType, int64 },
+                        new MetaFFITypeInfo[]{ int64 }
+                );
+
+                // === Calls ===
+                Object hObj = unwrapSingleReturn(createCounter.call(10L));
+                System.out.println("Java handle from create_counter(10) = " + hObj +
+                                   (hObj != null ? " (" + hObj.getClass().getName() + ")" : ""));
+
+                // --- counter_get ---
+                try {
+                    Object v1 = unwrapSingleReturn(counterGet.call(hObj));
+                    System.out.println("counter_get(c) -> " + v1);
+                } catch (Exception e) {
+                    System.out.println("counter_get(c) threw exception: " + e.getMessage());
+                }
+
+                // --- counter_inc ---
+                try {
+                    Object v2 = unwrapSingleReturn(counterInc.call(hObj, 5L));
+                    System.out.println("counter_inc(c, 5) -> " + v2);
+                } catch (Exception e) {
+                    System.out.println("counter_inc(c, 5) threw exception: " + e.getMessage());
+                }
+
+                // --- counter_get again ---
+                try {
+                    Object v3 = unwrapSingleReturn(counterGet.call(hObj));
+                    System.out.println("counter_get(c) again -> " + v3);
+                } catch (Exception e) {
+                    System.out.println("counter_get(c) again threw exception: " + e.getMessage());
+                }
+
+            } catch (Exception e) {
+                System.err.println("Error in OBJECT / HANDLE TEST: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+
 
         } catch (Exception e) {
             System.err.println("Fatal error: " + e.getMessage());

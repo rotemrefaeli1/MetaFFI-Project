@@ -64,3 +64,36 @@ function to_upper_char(c) {
     }
     return c[0].toUpperCase();
 }
+
+
+// --------------------------- OBJECT / HANDLE TEST ---------------------------
+
+// A simple object with internal state
+class Counter {
+    constructor(start) {
+        this.value = start || 0;
+    }
+
+    inc(delta) {
+        this.value += delta;
+        return this.value;
+    }
+
+    get() {
+        return this.value;
+    }
+}
+
+// Create a new Counter object (MetaFFI will wrap this inside a handle)
+function create_counter(start) {
+    return new Counter(start);
+}
+
+// Methods that receive the object via a MetaFFI handle
+function counter_get(self) {
+    return self.get();
+}
+
+function counter_inc(self, delta) {
+    return self.inc(delta);
+}
