@@ -1,13 +1,23 @@
 #pragma once
 #include <v8.h>
-#include "cdts_nodejs.h"
+#include "../plugin-sdk-main/runtime/cdt.h"
 
-// CDT "char" (תו יוניקוד יחיד ב-UTF-8) -> v8::String
-// אם הקלט איננו קוד-פוינט יחיד, תמולא out_err ויוחזר handle ריק.
-v8::Local<v8::String>
-v8_from_char(v8::Isolate* iso, const char* bytes, size_t len, char** out_err);
+namespace nodejs_char {
 
-// JS Value -> CDT "char" (מחרוזת UTF-8 של קוד-פוינט יחיד)
-// אם v אינו מחרוזת או שאינו תו יחיד, תמולא out_err ותחזור false.
-bool
-v8_to_cdt_char(v8::Isolate* iso, v8::Local<v8::Value> v, cdts& out, char** out_err);
+    // CDT (metaffi_char8_type) -> V8 String (UTF-8)
+    bool to_v8(v8::Isolate* iso,
+               v8::Local<v8::Context> ctx,
+               const cdt& in,
+               v8::Local<v8::Value>& out,
+               char** err) noexcept;
+
+    // V8 Any -> CDT metaffi_char8_type
+    // - מספר 0..127 → ASCII
+    // - מחרוזת UTF-8 → התו הראשון (עד 4 בייטים)
+    bool from_v8_to_type(v8::Isolate* iso,
+                         v8::Local<v8::Context> ctx,
+                         v8::Local<v8::Value> in,
+                         const metaffi_type_info& dst,
+                         cdt& out,
+                         char** err) noexcept;
+}
