@@ -111,7 +111,7 @@ public class test {
                 Object r1 = unwrapSingleReturn(div_i64.call(6L, 3L));
                 System.out.println("div_i64(6,3) -> " + r1);
 
-                // Expecting exception on division by zero (will propagate naturally)
+                // ניסיון חלוקה ב-0 (שצפוי לזרוק חריגה)
                 Object r2 = unwrapSingleReturn(div_i64.call(5L, 0L));
                 System.out.println("div_i64(5,0) -> " + r2);
 
@@ -119,7 +119,6 @@ public class test {
                 System.err.println("Error calling div_i64: " + e.getMessage());
                 e.printStackTrace();
             }
-
 
             // -------------------- invert_bool (bool) -> bool --------------------
             try {
@@ -184,6 +183,7 @@ public class test {
                 System.err.println("Error calling greet: " + e.getMessage());
                 e.printStackTrace();
             }
+
             // -------------------- OBJECT / HANDLE TEST --------------------
             try {
                 System.out.println("\n==== OBJECT / HANDLE TEST (Java) ====");
@@ -244,7 +244,48 @@ public class test {
                 e.printStackTrace();
             }
 
+            // ==== ARRAY<any> TESTS (Java) ====
+            try {
+                System.out.println("\n==== ARRAY<any> TESTS (Java) ====");
 
+                MetaFFITypeInfo anyArray = new MetaFFITypeInfo(
+                    MetaFFITypeInfo.MetaFFITypes.MetaFFIAnyArray
+                );
+
+                Caller makeMixedArray = testModule.load(
+                    "callable=make_mixed_array",
+                    null,
+                    new MetaFFITypeInfo[]{ anyArray }
+                );
+
+                Object mixedObj = unwrapSingleReturn(makeMixedArray.call());
+                System.out.println("make_mixed_array -> " + mixedObj);
+
+                if (mixedObj instanceof Object[]) {
+                    Object[] mixed = (Object[]) mixedObj;
+                    System.out.println("make_mixed_array -> Java Object[] length = " + mixed.length);
+                    for (int i = 0; i < mixed.length; ++i) {
+                        Object el = mixed[i];
+                        System.out.println("  mixed[" + i + "] = " + el +
+                                " (Java type: " + (el != null ? el.getClass().getName() : "null") + ")");
+                    }
+
+                    // כרגע: **לא** קוראים sum_array(mixed)
+                    // Caller sumArray = testModule.load(
+                    //         "callable=sum_array",
+                    //         new MetaFFITypeInfo[]{ anyArray },
+                    //         new MetaFFITypeInfo[]{ new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIFloat64) }
+                    // );
+                    // Object sumRes = unwrapSingleReturn(sumArray.call((Object) mixed));
+                    // System.out.println("sum_array(mixed) -> " + sumRes);
+                } else {
+                    System.out.println("make_mixed_array returned non-array: " + mixedObj +
+                                       (mixedObj != null ? " (" + mixedObj.getClass().getName() + ")" : ""));
+                }
+            } catch (Exception e) {
+                System.err.println("Error in ARRAY<any> tests: " + e.getMessage());
+                e.printStackTrace();
+            }
 
         } catch (Exception e) {
             System.err.println("Fatal error: " + e.getMessage());

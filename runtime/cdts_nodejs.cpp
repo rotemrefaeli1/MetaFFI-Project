@@ -18,7 +18,9 @@ using namespace v8;
 #define strdup _strdup
 #endif
 
+// ----------------------------------------------------------------------
 // helper: set error only once
+// ----------------------------------------------------------------------
 static inline void set_err(char** err, const char* msg)
 {
     if (!err) return;
@@ -26,9 +28,61 @@ static inline void set_err(char** err, const char* msg)
     *err = strdup(msg ? msg : "cdts_nodejs: error");
 }
 
-// =====================================================
+// ----------------------------------------------------------------------
+// helper: JS Array -> CDT array<any>
+// משתמשים ב-new cdts(length, fixed_dimensions)
+// ולא מנהלים ידנית את arr, כדי ש-destructor של cdts יעבוד נכון.
+// ----------------------------------------------------------------------
+static bool v8_array_to_cdt_any_array(const v8_conv_opts& o,
+                                      Local<Array> js_arr,
+                                      cdt* out,
+                                      char** out_err)
+{
+    if (out_err) *out_err = nullptr;
+
+    Isolate* iso = o.isolate;
+    Local<Context> ctx = o.ctx;
+
+    uint32_t len_u32 = js_arr->Length();
+    metaffi_size len = static_cast<metaffi_size>(len_u32);
+
+    cdts* header = nullptr;
+
+    try {
+        // מערך חד־מימדי, fixed_dimensions = 1
+        header = new cdts(len, 1);
+    } catch (...) {
+        set_err(out_err, "v8_array_to_cdt_any_array: failed to allocate cdts");
+        return false;
+    }
+
+    for (metaffi_size i = 0; i < len; ++i)
+    {
+        Local<Value> elem;
+        if (!js_arr->Get(ctx, static_cast<uint32_t>(i)).ToLocal(&elem))
+        {
+            set_err(out_err, "v8_array_to_cdt_any_array: failed to get JS array element");
+            delete header; // destructor של cdts ישחרר את arr
+            return false;
+        }
+
+        // כל איבר הוא any -> משתמשים בנתיב הגנרי
+        v8_to_cdt(o, elem, &(*header)[i], out_err);
+        if (out_err && *out_err)
+        {
+            delete header;
+            return false;
+        }
+    }
+
+    // array<any>: array + common_type = any
+    out->set_array(header, metaffi_any_type);
+    return true;
+}
+
+// ======================================================================
 // CDT -> V8 (פריט בודד)
-// =====================================================
+// ======================================================================
 Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err)
 {
     if (out_err) *out_err = nullptr;
@@ -37,11 +91,41 @@ Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err)
     Local<Context> ctx = o.ctx;
     Local<Value> out;
 
-    switch (in.type)
-    {
-        case metaffi_null_type:
-            return Null(iso);
+    metaffi_type t = in.type;
 
+    // null מפורש
+    if (t == metaffi_null_type)
+    {
+        return Null(iso);
+    }
+
+    // --- arrays (כולל any array ו-typed arrays): type & metaffi_array_type ---
+    if (t & metaffi_array_type)
+    {
+        cdts* header = in.cdt_val.array_val;
+        if (!header)
+        {
+            // nullptr כ-null ב-JS
+            return Null(iso);
+        }
+
+        Local<Array> js_arr = Array::New(iso, static_cast<int>(header->length));
+        for (metaffi_size i = 0; i < header->length; ++i)
+        {
+            Local<Value> elem_js = cdt_to_v8(o, (*header)[i], out_err);
+            if (out_err && *out_err)
+            {
+                return Undefined(iso);
+            }
+
+            js_arr->Set(ctx, static_cast<uint32_t>(i), elem_js).Check();
+        }
+        return js_arr;
+    }
+
+    // מכאן והלאה מטפלים בפרימיטיבים לפי type המדויק
+    switch (t)
+    {
         // --- bool ---
         case metaffi_bool_type:
             if (!nodejs_bool::to_v8(iso, ctx, in, out, out_err))
@@ -93,9 +177,9 @@ Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err)
     }
 }
 
-// =====================================================
+// ======================================================================
 // CDTS -> argv
-// =====================================================
+// ======================================================================
 bool cdts_to_v8_argv(const v8_conv_opts& o,
                      const cdts& in,
                      std::vector<Local<Value>>& argv,
@@ -114,9 +198,9 @@ bool cdts_to_v8_argv(const v8_conv_opts& o,
     return true;
 }
 
-// =====================================================
-// V8 -> CDT (הסקה גנרית בלי טיפוס יעד)
-// =====================================================
+// ======================================================================
+// V8 -> CDT (הסקה גנרית בלי טיפוס יעד) – any
+// ======================================================================
 void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
 {
     if (out_err) *out_err = nullptr;
@@ -136,8 +220,15 @@ void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
     // bool
     if (in->IsBoolean())
     {
-        // לא אמור להיכשל
         (void)nodejs_bool::from_v8(iso, ctx, in, *out, out_err);
+        return;
+    }
+
+    // Array -> array<any>
+    if (in->IsArray())
+    {
+        Local<Array> js_arr = in.As<Array>();
+        (void)v8_array_to_cdt_any_array(o, js_arr, out, out_err);
         return;
     }
 
@@ -155,10 +246,11 @@ void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
         return;
     }
 
-    // String -> string8
+    // String -> string8 (נתיב גנרי – צריך לוודא שה-type באמת string8)
     if (in->IsString())
     {
-        (void)nodejs_str::from_v8(iso, ctx, in, *out, out_err);
+        metaffi_type_info dst(metaffi_string8_type);
+        (void)nodejs_str::from_v8_to_type(iso, ctx, in, dst, *out, out_err);
         return;
     }
 
@@ -173,9 +265,9 @@ void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
     set_err(out_err, "v8_to_cdt: unsupported JS type");
 }
 
-// =====================================================
+// ======================================================================
 // V8 -> CDT לפי טיפוס יעד (metaffi_type_info)
-// =====================================================
+// ======================================================================
 bool v8_to_cdt_as_type(const v8_conv_opts& o,
                        Local<Value> in,
                        const metaffi_type_info& dst,
@@ -189,7 +281,23 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
 
     out->free_required = 0;
 
-    switch (dst.type)
+    metaffi_type t = dst.type;
+
+    // --- Arrays (כרגע נתמך כ-array<any>) ---
+    if (t & metaffi_array_type)
+    {
+        if (!in->IsArray())
+        {
+            set_err(out_err, "v8_to_cdt_as_type: expected JS Array for metaffi_array_type");
+            return false;
+        }
+
+        Local<Array> js_arr = in.As<Array>();
+        return v8_array_to_cdt_any_array(o, js_arr, out, out_err);
+    }
+
+    // --- שאר הטיפוסים (לא array) ---
+    switch (t)
     {
         // --- bool ---
         case metaffi_bool_type:
@@ -202,7 +310,7 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
         case metaffi_int64_type:
         {
             int bits = 0;
-            switch (dst.type)
+            switch (t)
             {
                 case metaffi_int8_type:  bits = 8;  break;
                 case metaffi_int16_type: bits = 16; break;
@@ -225,7 +333,7 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
         case metaffi_uint64_type:
         {
             int bits = 0;
-            switch (dst.type)
+            switch (t)
             {
                 case metaffi_uint8_type:  bits = 8;  break;
                 case metaffi_uint16_type: bits = 16; break;
@@ -264,7 +372,7 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
             out->free_required = 0;
             return true;
 
-        // fallback: השתמש בהסקה הגנרית
+        // fallback: any – השתמש בהסקה הגנרית
         default:
             v8_to_cdt(o, in, out, out_err);
             return !(out_err && *out_err);

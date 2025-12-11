@@ -97,3 +97,32 @@ function counter_get(self) {
 function counter_inc(self, delta) {
     return self.inc(delta);
 }
+
+
+// ===== Array<any> tests =====
+
+// מחזיר מערך "מעורב" – מספר, מחרוזת, בוליאן, אובייקט, מספר
+function make_mixed_array() {
+    const arr = [1, "two", true, { x: 42 }, 3.5];
+    console.log("make_mixed_array ->", arr);
+    return arr;
+}
+
+// מקבל מערך מכל סוג (any[]), מסכם רק את המספרים ומחזיר float64
+function sum_array(arr) {
+    console.log("sum_array: isArray=", Array.isArray(arr), "len=", arr.length);
+    let sum = 0;
+    for (const v of arr) {
+        if (typeof v === "number") {
+            sum += v;
+        }
+    }
+    console.log("sum_array ->", sum);
+    return sum;
+}
+
+// אופציונלי: פונקציה שמחזירה את אורך המערך, כדי לבדוק גם את הצד הזה
+function array_length(arr) {
+    console.log("array_length: len=", arr.length);
+    return arr.length;
+}
