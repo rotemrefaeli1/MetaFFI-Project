@@ -12,14 +12,14 @@ namespace nodejs_bool {
                v8::Local<v8::Value>& out,
                char** err) noexcept;
 
-    // V8 Any -> CDT bool (ע"פ ToBoolean של JS)
+    // V8 Any -> CDT bool (according to JS ToBoolean semantics)
     bool from_v8(v8::Isolate* iso,
                  v8::Local<v8::Context> ctx,
                  v8::Local<v8::Value> in,
                  cdt& out,
                  char** err) noexcept;
 
-    // וריאנט לפי טיפוס יעד מוצהר (צריך להיות metaffi_bool_type)
+    // Variant according to declared target type (must be metaffi_bool_type)
     bool from_v8_to_type(v8::Isolate* iso,
                          v8::Local<v8::Context> ctx,
                          v8::Local<v8::Value> in,

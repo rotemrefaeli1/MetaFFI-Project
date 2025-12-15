@@ -33,7 +33,7 @@ bool to_v8(Isolate* iso, Local<Context> /*ctx*/, const cdt& in, Local<Value>& ou
     }
 }
 
-// עוזר: המרת Value ל-double (תומך Number/Int32/BigInt)
+// Helper: convert Value to double (supports Number/Int32/BigInt)
 static inline bool value_to_double(Isolate* iso, Local<Context> ctx, Local<Value> in, double& d, char** err) noexcept
 {
     if (in->IsNumber() || in->IsInt32()){
@@ -51,7 +51,7 @@ static inline bool value_to_double(Isolate* iso, Local<Context> ctx, Local<Value
     return false;
 }
 
-// V8 Any -> CDT float64 (ברירת מחדל)
+// V8 Any -> CDT float64 (default)
 bool from_v8_as_f64(Isolate* iso, Local<Context> ctx, Local<Value> in, cdt& out, char** err) noexcept
 {
     double d;
@@ -64,7 +64,7 @@ bool from_v8_as_f64(Isolate* iso, Local<Context> ctx, Local<Value> in, cdt& out,
     return true;
 }
 
-// V8 -> CDT לפי יעד
+// V8 -> CDT according to declared target type
 bool from_v8_to_type(Isolate* iso, Local<Context> ctx, Local<Value> in,
                      const metaffi_type_info& dst, cdt& out, char** err) noexcept
 {
@@ -74,7 +74,7 @@ bool from_v8_to_type(Isolate* iso, Local<Context> ctx, Local<Value> in,
 
     switch(dst.type){
         case metaffi_float32_type: {
-            // בדיקת טווח ל-float32
+            // Range check for float32
             if (d > static_cast<double>(std::numeric_limits<float>::max()) ||
                 d < static_cast<double>(-std::numeric_limits<float>::max())) {
                 set_err(err, "Number out of float32 range");

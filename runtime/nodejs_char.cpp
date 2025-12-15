@@ -50,7 +50,7 @@ namespace nodejs_char {
             return false;
         }
 
-        // 1) מספר → ASCII 0..127
+        // 1) Number → ASCII range 0..127
         if(in->IsNumber()){
             double d = in->NumberValue(ctx).ToChecked();
             if (std::isnan(d) || std::isinf(d) || d < 0.0 || d > 127.0) {
@@ -68,7 +68,7 @@ namespace nodejs_char {
             return true;
         }
 
-        // 2) מחרוזת UTF-8: נשתמש בתו הראשון (עד 4 בייטים קידוד UTF-8)
+        // 2) UTF-8 string: use the first character (up to 4 bytes in UTF-8 encoding)
         String::Utf8Value s(iso, in);
         const char* utf8 = (*s ? *s : "");
         if (utf8[0] == '\0') {

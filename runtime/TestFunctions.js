@@ -1,47 +1,45 @@
 function helloMetaFFI() {
     console.log("Hello from Node.js via MetaFFI!");
-
 }
 
 // Force int32 on inputs and result
 // add.js
 function add_ints(a, b) {
-    // Force Number so BigInt from V8 לא יפיל |0
+    // Force Number so BigInt from V8 will not break the |0 operation
     return (Number(a) | 0) + (Number(b) | 0) | 0;
 }
 
-
-//******************************another type for checking
+// ****************************** another type for checking
 
 function add_ints64(a, b) {
     return BigInt(a) + BigInt(b);
 }
 
-
 // --- FLOATS ---
 
-// float32: נשתמש ב-Math.fround כדי לדמות דיוק יחיד (single precision)
+// float32: use Math.fround to simulate single-precision behavior
 function add_f32(a, b) {
     const x = Math.fround(Number(a));
     const y = Math.fround(Number(b));
     return Math.fround(x + y);
 }
 
-// float64: Number רגיל (double precision)
+// float64: regular Number (double precision)
 function add_f64(a, b) {
     return Number(a) + Number(b);
 }
-function div_i64(a, b){
-    console.log(typeof a, typeof b);
 
-    return (a / b) ;
+function div_i64(a, b) {
+    console.log(typeof a, typeof b);
+    return (a / b);
 }
-// פונקציה לבדיקת bool: הופכת אמת/שקר
+
+// Boolean test function: invert true/false
 function invert_bool(b) {
     return !Boolean(b);
 }
 
-// אופציונלי: גם AND לוגי
+// Optional: logical AND
 function and_bool(a, b) {
     return Boolean(a) && Boolean(b);
 }
@@ -55,7 +53,7 @@ function greet(name) {
 }
 
 function to_upper_char(c) {
-    // נוודא שמקבלים string
+    // Ensure we are working with a string
     if (typeof c !== 'string') {
         c = String(c);
     }
@@ -64,7 +62,6 @@ function to_upper_char(c) {
     }
     return c[0].toUpperCase();
 }
-
 
 // --------------------------- OBJECT / HANDLE TEST ---------------------------
 
@@ -98,7 +95,6 @@ function counter_inc(self, delta) {
     return self.inc(delta);
 }
 
-
 // ===== Array<any> tests =====
 
 // ===== string8[] =====
@@ -106,27 +102,23 @@ function make_string_array() {
     return ["hello", "from", "MetaFFI"];
 }
 
-
 function join_string_array(arr) {
-    // פעולה אמיתית: join + בדיקת טיפוס
+    // Real operation: join + type check
     if (!Array.isArray(arr)) throw new Error("join_string_array: expected Array");
     return arr.map(x => String(x)).join("-");
 }
-
-
 
 // ===== int32[] =====
 function make_int32_array() {
     return [1, 2, 3, -7, 42];
 }
 
-
 function sum_int32_array(arr) {
-    // פעולה אמיתית: sum (והתנהגות int32)
+    // Real operation: sum (with int32 semantics)
     if (!Array.isArray(arr)) throw new Error("sum_int32_array: expected Array");
     let s = 0;
     for (const x of arr) {
-        // enforce int32 semantics:
+        // Enforce int32 semantics
         s = (s + (Number(x) | 0)) | 0;
     }
     return s;
@@ -140,15 +132,14 @@ function make_object_array() {
     ];
 }
 
-
 function sum_ids(objs) {
     if (!Array.isArray(objs)) throw new Error("sum_ids: expected Array");
     let s = 0;
     for (const o of objs) {
-        if (o == null || typeof o !== "object") throw new Error("sum_ids: element is not object");
+        if (o == null || typeof o !== "object") {
+            throw new Error("sum_ids: element is not an object");
+        }
         s += Number(o.id) || 0;
     }
-    return s; // Number -> float64 בדרך כלל (או int32 אם תגדירו)
+    return s; // Number -> usually float64 (or int32 if enforced)
 }
-
-

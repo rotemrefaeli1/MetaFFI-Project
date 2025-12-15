@@ -30,8 +30,8 @@ static inline void set_err(char** err, const char* msg)
 
 // ----------------------------------------------------------------------
 // helper: JS Array -> CDT array<any>
-// משתמשים ב-new cdts(length, fixed_dimensions)
-// ולא מנהלים ידנית את arr, כדי ש-destructor של cdts יעבוד נכון.
+// Uses new cdts(length, fixed_dimensions)
+// and does not manually manage the internal buffer, so cdts destructor works correctly.
 // ----------------------------------------------------------------------
 static bool v8_array_to_cdt_any_array(const v8_conv_opts& o,
                                       Local<Array> js_arr,
@@ -49,7 +49,7 @@ static bool v8_array_to_cdt_any_array(const v8_conv_opts& o,
     cdts* header = nullptr;
 
     try {
-        // מערך חד־מימדי, fixed_dimensions = 1
+        // One-dimensional array, fixed_dimensions = 1
         header = new cdts(len, 1);
     } catch (...) {
         set_err(out_err, "v8_array_to_cdt_any_array: failed to allocate cdts");
@@ -62,11 +62,11 @@ static bool v8_array_to_cdt_any_array(const v8_conv_opts& o,
         if (!js_arr->Get(ctx, static_cast<uint32_t>(i)).ToLocal(&elem))
         {
             set_err(out_err, "v8_array_to_cdt_any_array: failed to get JS array element");
-            delete header; // destructor של cdts ישחרר את arr
+            delete header; // cdts destructor will release the internal buffer
             return false;
         }
 
-        // כל איבר הוא any -> משתמשים בנתיב הגנרי
+        // Each element is 'any' -> use the generic inference path
         v8_to_cdt(o, elem, &(*header)[i], out_err);
         if (out_err && *out_err)
         {
@@ -118,14 +118,14 @@ static bool v8_array_to_cdt_typed_array(const v8_conv_opts& o,
         }
     }
 
-    // common_type = elem_type (קריטי!)
+    // common_type = elem_type (critical!)
     out->set_array(header, static_cast<metaffi_types>(elem_type));
     return true;
 }
 
 
 // ======================================================================
-// CDT -> V8 (פריט בודד)
+// CDT -> V8 (single item)
 // ======================================================================
 Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err)
 {
@@ -137,19 +137,19 @@ Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err)
 
     metaffi_type t = in.type;
 
-    // null מפורש
+    // Explicit null
     if (t == metaffi_null_type)
     {
         return Null(iso);
     }
 
-    // --- arrays (כולל any array ו-typed arrays): type & metaffi_array_type ---
+    // --- arrays (including any array and typed arrays): type & metaffi_array_type ---
     if (t & metaffi_array_type)
     {
         cdts* header = in.cdt_val.array_val;
         if (!header)
         {
-            // nullptr כ-null ב-JS
+            // nullptr maps to JS null
             return Null(iso);
         }
 
@@ -167,7 +167,7 @@ Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err)
         return js_arr;
     }
 
-    // מכאן והלאה מטפלים בפרימיטיבים לפי type המדויק
+    // From here: handle primitives by their exact type
     switch (t)
     {
         // --- bool ---
@@ -214,7 +214,8 @@ Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err)
             cdt_metaffi_handle* h = in.cdt_val.handle_val;
             return nodejs_object::handle_to_v8(iso, ctx, h, out_err);
         }
-            // --- any (defensive) ---
+
+        // --- any (defensive) ---
         case metaffi_any_type:
             return Null(iso);
 
@@ -246,7 +247,7 @@ bool cdts_to_v8_argv(const v8_conv_opts& o,
 }
 
 // ======================================================================
-// V8 -> CDT (הסקה גנרית בלי טיפוס יעד) – any
+// V8 -> CDT (generic inference, target type = any)
 // ======================================================================
 void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
 {
@@ -293,7 +294,7 @@ void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
         return;
     }
 
-    // String -> string8 (נתיב גנרי – צריך לוודא שה-type באמת string8)
+    // String -> string8 (generic path - must ensure the type is indeed string8)
     if (in->IsString())
     {
         metaffi_type_info dst(metaffi_string8_type);
@@ -308,12 +309,12 @@ void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
         return;
     }
 
-    // אחרת – unsupported
+    // Otherwise - unsupported
     set_err(out_err, "v8_to_cdt: unsupported JS type");
 }
 
 // ======================================================================
-// V8 -> CDT לפי טיפוס יעד (metaffi_type_info)
+// V8 -> CDT according to declared target type (metaffi_type_info)
 // ======================================================================
 bool v8_to_cdt_as_type(const v8_conv_opts& o,
                        Local<Value> in,
@@ -338,10 +339,10 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
             return false;
         }
 
-        // elem_type = כל הביטים חוץ מ-array
+        // elem_type = all bits except the array bit
         metaffi_type elem_type = (t & ~metaffi_array_type);
 
-        // בשלב הזה לא תומכים ב-any[]
+        // At this stage we do not support any[]
         if (elem_type == 0 || elem_type == metaffi_any_type)
         {
             set_err(out_err, "v8_to_cdt_as_type: any[] not supported yet (typed arrays only)");
@@ -353,7 +354,7 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
     }
 
 
-    // --- שאר הטיפוסים (לא array) ---
+    // --- other (non-array) types ---
     switch (t)
     {
         // --- bool ---
@@ -429,7 +430,7 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
             out->free_required = 0;
             return true;
 
-        // fallback: any – השתמש בהסקה הגנרית
+        // fallback: any - use generic inference
         default:
             v8_to_cdt(o, in, out, out_err);
             return !(out_err && *out_err);

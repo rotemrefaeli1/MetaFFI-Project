@@ -5,19 +5,19 @@
 
 namespace nodejs_object
 {
-    // חייב להיות מסונכרן עם ה-runtime id של Node.js ב-MetaFFI
+    // Must be kept in sync with the Node.js runtime id in MetaFFI
     extern const metaffi_uint64 NODEJS_RUNTIME_ID;
 
-    // פונקציית release שתשב בתוך cdt_metaffi_handle::release
+    // Release function stored in cdt_metaffi_handle::release
     void release_handle(cdt_metaffi_handle* h) noexcept;
 
-    // המרת MetaFFI handle חזרה ל־V8 Value
+    // Convert a MetaFFI handle back to a V8 Value
     v8::Local<v8::Value> handle_to_v8(v8::Isolate* iso,
                                       v8::Local<v8::Context> ctx,
                                       const cdt_metaffi_handle* h,
                                       char** out_err);
 
-    // המרת ערך JS (אובייקט/פונקציה) ל־MetaFFI handle בתוך CDT
+    // Convert a JS value (object/function) into a MetaFFI handle stored in a CDT
     bool js_value_to_handle(v8::Isolate* iso,
                             v8::Local<v8::Context> ctx,
                             v8::Local<v8::Value> in,

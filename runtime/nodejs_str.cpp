@@ -15,7 +15,7 @@ static inline void set_err(char** err, const char* msg){
 
 namespace nodejs_str {
 
-    // CDT → V8 String
+    // CDT -> V8 String
     bool to_v8(Isolate* iso, Local<Context> ctx, const cdt& in, Local<Value>& out, char** err) noexcept
     {
         if(in.type != metaffi_string8_type){
@@ -29,7 +29,7 @@ namespace nodejs_str {
         return true;
     }
 
-    // V8 String → CDT
+    // V8 String -> CDT
     bool from_v8(Isolate* iso, Local<Context> ctx, Local<Value> in, cdt& out, char** err) noexcept
     {
         if(!in->IsString()){
@@ -51,8 +51,9 @@ namespace nodejs_str {
         return true;
     }
 
-    // לפי טיפוס יעד
-    bool from_v8_to_type(Isolate* iso, Local<Context> ctx, Local<Value> in, const metaffi_type_info& dst, cdt& out, char** err) noexcept
+    // According to declared target type
+    bool from_v8_to_type(Isolate* iso, Local<Context> ctx, Local<Value> in,
+                         const metaffi_type_info& dst, cdt& out, char** err) noexcept
     {
         if(dst.type != metaffi_string8_type){
             set_err(err, "nodejs_str::from_v8_to_type: target type is not metaffi_string8_type");

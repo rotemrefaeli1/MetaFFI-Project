@@ -111,7 +111,7 @@ public class test {
                 Object r1 = unwrapSingleReturn(div_i64.call(6L, 3L));
                 System.out.println("div_i64(6,3) -> " + r1);
 
-                // ניסיון חלוקה ב-0 (שצפוי לזרוק חריגה)
+                // Division by zero attempt (expected to throw an exception)
                 Object r2 = unwrapSingleReturn(div_i64.call(5L, 0L));
                 System.out.println("div_i64(5,0) -> " + r2);
 
@@ -317,20 +317,20 @@ public class test {
                        System.out.println("  a[" + i + "] = " + arr[i]);
                    }
 
-                   Object sum = unwrapSingleReturn(sumInt32Array.call(arr)); // בלי (Object)
+                   Object sum = unwrapSingleReturn(sumInt32Array.call(arr)); // no (Object) cast
                    System.out.println("sum_int32_array(arr) -> " + sum);
 
                } else {
                    System.out.println("make_int32_array returned unexpected type: " +
                        (i32ArrObj != null ? i32ArrObj.getClass().getName() : "null"));
                }
+
                // ---------- handle[] (objects) ----------
                System.out.println("\n-- handle[] (objects) + sum_ids --");
 
                MetaFFITypeInfo handleArray = new MetaFFITypeInfo(
                    MetaFFITypeInfo.MetaFFITypes.MetaFFIHandleArray
                );
-
 
                Caller makeObjectArray = testModule.load(
                    "callable=make_object_array",
@@ -346,7 +346,7 @@ public class test {
 
                Object objArr = unwrapSingleReturn(makeObjectArray.call());
 
-               // פה זה כנראה יחזור כ-Object[] של "handles" (אובייקטים עטופים)
+               // This will likely return an Object[] of "handles" (wrapped objects)
                if (objArr instanceof Object[]) {
                    Object[] arr = (Object[]) objArr;
                    System.out.println("make_object_array -> length = " + arr.length);
@@ -363,14 +363,10 @@ public class test {
                        (objArr != null ? objArr.getClass().getName() : "null"));
                }
 
-
-
            } catch (Exception e) {
                System.err.println("Error in TYPED ARRAY tests: " + e.getMessage());
                e.printStackTrace();
            }
-
-
 
         } catch (Exception e) {
             System.err.println("Fatal error: " + e.getMessage());
@@ -379,7 +375,6 @@ public class test {
             if (runtime != null) {
                 try {
                     runtime.releaseRuntimePlugin();
-                    System.out.println("\n[nodejs] free_runtime");
                     System.out.println("Java: runtime released");
                 } catch (Exception ex) {
                     System.err.println("Error releasing runtime: " + ex.getMessage());

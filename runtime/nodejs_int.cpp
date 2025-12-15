@@ -12,7 +12,7 @@ static inline void set_err(char** err, const char* msg){ if(err) *err = strdup(m
 
 namespace nodejs_int {
 
-// לשמירה על דיוק, מעבר ל־2^53-1 נעבוד עם BigInt
+// To preserve exactness, values beyond 2^53-1 are represented as BigInt
 static constexpr int64_t JS_SAFE_MAX = (1LL<<53) - 1;
 static constexpr int64_t JS_SAFE_MIN = -((1LL<<53) - 1);
 
@@ -93,7 +93,7 @@ bool from_v8_to_int64(Isolate* iso, Local<Context> ctx, Local<Value> in, cdt& ou
 
 bool from_v8_to_sized(Isolate* iso, Local<Context> ctx, Local<Value> in, int target_bits, bool is_signed, cdt& out, char** err)
 {
-    // קורא הערך ל־int64/uint64, ואז בודק טווחים לפי יעד
+    // Read into int64/uint64 and then validate range according to the target width
     int64_t  s_val = 0;
     uint64_t u_val = 0;
 
@@ -123,7 +123,7 @@ bool from_v8_to_sized(Isolate* iso, Local<Context> ctx, Local<Value> in, int tar
         return false;
     }
 
-    // כתיבה ל-CDT לפי יעד
+    // Write into CDT according to the requested width
     out.free_required = 0;
     if(is_signed){
         switch(target_bits){

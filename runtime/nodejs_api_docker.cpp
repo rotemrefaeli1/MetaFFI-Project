@@ -1,5 +1,3 @@
-
-
 // nodejs_api_docker.cpp
 #include <v8.h>
 #include <libplatform/libplatform.h>
@@ -126,9 +124,8 @@ static void inject_console(v8::Isolate* isolate, v8::Local<v8::Context> context)
             }
             std::string line = oss.str();
 
-            // למסך (stdout של התהליך)
+            // Print to terminal (process stdout)
             std::cout << line << std::endl;
-
 
         }).ToLocalChecked();
 
@@ -266,11 +263,11 @@ extern "C" void xcall_no_params_ret(void* context_ptr, cdts* rets, char** out_er
         return;
     }
 
-    // אם לא הוצהר ערך חזרה – אין מה למלא
+    // If no return value was declared, nothing to populate
     if(ctx->retval_count == 0) return;
     if(!rets){ set_err(out_err,"null returns cdts pointer"); return; }
 
-    // לדאוג שיש מספיק סלוטים ב-rets
+    // Ensure there are enough slots in rets
     if(rets->length < ctx->retval_count){
         new (rets) cdts((metaffi_size)ctx->retval_count, /*fixed_dimensions*/ 1);
     }
@@ -350,7 +347,7 @@ extern "C" void xcall_params_no_ret(void* context_ptr, cdts* params, char** out_
         return;
     }
 
-    // אין ערכי חזרה – מתעלמים מ-js_ret
+    // No return values - ignore js_ret
 }
 
 
@@ -385,7 +382,7 @@ extern "C" void nodejs_xcall_params_ret(void* context_ptr, cdts params_ret[2], c
 
     Local<Value> js_ret;
     if(!func->Call(context, context->Global(), (int)argv.size(), argv.data()).ToLocal(&js_ret)){
-        // 1) האם בכלל קיבלנו מצביע out_err מה-bridge?
+        // 1) Did we even get an out_err pointer from the bridge?
         if(!out_err){
             std::cerr << "[nodejs] ERROR PATH: out_err == NULL (caller didn't supply error sink)" << std::endl;
         } else {
@@ -528,11 +525,11 @@ extern "C" struct xcall* load_entity(
         if (context->Global()->Get(context, exports_str).ToLocal(&exports_val) && exports_val->IsObject()) {
             Local<Object> exports_obj = exports_val.As<Object>();
             v8::MaybeLocal<v8::Value> maybeVal = exports_obj->Get(context, fn);
-			v8::Local<v8::Value> val;
-			if (!maybeVal.ToLocal(&val)) {
-    		fprintf(stderr, "[nodejs] Warning: could not find function '%s' on exports object\n", funcname.c_str());
-    		return nullptr; // Avoid crashing later when trying to call an empty handle
-			}
+            v8::Local<v8::Value> val;
+            if (!maybeVal.ToLocal(&val)) {
+                fprintf(stderr, "[nodejs] Warning: could not find function '%s' on exports object\n", funcname.c_str());
+                return nullptr; // Avoid crashing later when trying to call an empty handle
+            }
         }
     }
 
@@ -662,4 +659,3 @@ extern "C" xcall* make_callable(void*, metaffi_type_info*, int8_t, metaffi_type_
     if(out_err) *out_err = strdup("make_callable is not supported in this xllr implementation");
     return nullptr;
 }
-

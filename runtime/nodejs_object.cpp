@@ -12,12 +12,12 @@ using namespace v8;
 
 namespace
 {
-    // זה ה-"handle הפנימי" שנשמר בצד C++
+    // This is the internal "handle" stored on the C++ side
     struct nodejs_object_handle
     {
-        uint64_t       id;      // רק לדיבאג
-        Isolate*       isolate; // איזולט שיצר את ה-Value
-        Global<Value>  value;   // Global כדי למנוע GC
+        uint64_t       id;      // debug only
+        Isolate*       isolate; // isolate that created the Value
+        Global<Value>  value;   // Global to prevent GC
     };
 
     static std::atomic<uint64_t> g_next_nodejs_handle_id{1};
@@ -42,14 +42,14 @@ namespace
 
 namespace nodejs_object
 {
-    // חשוב: תעדכן אם ב-MetaFFI יש קבוע רשמי ל-runtime של Node.js
+    // Important: update if MetaFFI defines an official constant for the Node.js runtime id
     const metaffi_uint64 NODEJS_RUNTIME_ID = 2;
 
     void release_handle(cdt_metaffi_handle* h) noexcept
     {
         if(!h) return;
 
-        // אם זה לא runtime של Node.js – מתעלמים
+        // If this is not a Node.js runtime handle - ignore
         if(h->runtime_id != NODEJS_RUNTIME_ID){
             return;
         }
@@ -70,7 +70,7 @@ namespace nodejs_object
                               const cdt_metaffi_handle* h,
                               char** out_err)
     {
-        (void)ctx; // כרגע לא בשימוש, נשאיר חתימה גנרית
+        (void)ctx; // currently unused, keep a generic signature
 
         if(!h){
             set_err(out_err, "handle_to_v8: null cdt_metaffi_handle");
@@ -118,14 +118,14 @@ namespace nodejs_object
                             cdt& out,
                             char** out_err) noexcept
     {
-        (void)ctx; // לא נדרש כרגע
+        (void)ctx; // not required currently
 
         if(!in->IsObject() && !in->IsFunction()){
             set_err(out_err, "js_value_to_handle: JS value is not an object/function");
             return false;
         }
 
-        // אם MetaFFI נתן לנו כבר container – נשתמש בו
+        // If MetaFFI already provided a container - use it
         cdt_metaffi_handle* h = out.cdt_val.handle_val;
         if(!h){
             h = new cdt_metaffi_handle{};
@@ -139,7 +139,7 @@ namespace nodejs_object
         h->release    = &release_handle;
 
         out.type          = metaffi_handle_type;
-        out.free_required = 0; // MetaFFI משחרר דרך h->release
+        out.free_required = 0; // MetaFFI releases via h->release
 
         return true;
     }

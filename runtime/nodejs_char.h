@@ -12,8 +12,8 @@ namespace nodejs_char {
                char** err) noexcept;
 
     // V8 Any -> CDT metaffi_char8_type
-    // - מספר 0..127 → ASCII
-    // - מחרוזת UTF-8 → התו הראשון (עד 4 בייטים)
+    // - Number 0..127 → ASCII
+    // - UTF-8 string → first character (up to 4 bytes)
     bool from_v8_to_type(v8::Isolate* iso,
                          v8::Local<v8::Context> ctx,
                          v8::Local<v8::Value> in,

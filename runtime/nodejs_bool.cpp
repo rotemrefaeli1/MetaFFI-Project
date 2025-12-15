@@ -26,7 +26,7 @@ namespace nodejs_bool {
         return true;
     }
 
-    // V8 Any -> CDT bool (ע"פ ToBoolean של JS)
+    // V8 Any -> CDT bool (according to JS ToBoolean semantics)
     bool from_v8(Isolate* iso, Local<Context> /*ctx*/, Local<Value> in, cdt& out, char** /*err*/) noexcept
     {
         out.type = metaffi_bool_type;
@@ -35,7 +35,7 @@ namespace nodejs_bool {
         return true;
     }
 
-    // וריאנט לפי טיפוס יעד מוצהר
+    // Variant according to declared target type
     bool from_v8_to_type(Isolate* iso, Local<Context> ctx, Local<Value> in,
                          const metaffi_type_info& dst, cdt& out, char** err) noexcept
     {
