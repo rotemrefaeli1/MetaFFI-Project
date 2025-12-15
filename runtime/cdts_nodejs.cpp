@@ -80,6 +80,50 @@ static bool v8_array_to_cdt_any_array(const v8_conv_opts& o,
     return true;
 }
 
+static bool v8_array_to_cdt_typed_array(const v8_conv_opts& o,
+                                        Local<Array> js_arr,
+                                        metaffi_type elem_type,
+                                        cdt* out,
+                                        char** out_err)
+{
+    if (out_err) *out_err = nullptr;
+
+    uint32_t len_u32 = js_arr->Length();
+    metaffi_size len = static_cast<metaffi_size>(len_u32);
+
+    cdts* header = nullptr;
+    try {
+        header = new cdts(len, 1); // 1D
+    } catch (...) {
+        set_err(out_err, "v8_array_to_cdt_typed_array: failed to allocate cdts");
+        return false;
+    }
+
+    metaffi_type_info dst_elem(elem_type);
+
+    for (metaffi_size i = 0; i < len; ++i)
+    {
+        Local<Value> elem;
+        if (!js_arr->Get(o.ctx, static_cast<uint32_t>(i)).ToLocal(&elem))
+        {
+            set_err(out_err, "v8_array_to_cdt_typed_array: failed to get JS array element");
+            delete header;
+            return false;
+        }
+
+        if (!v8_to_cdt_as_type(o, elem, dst_elem, &(*header)[i], out_err))
+        {
+            delete header;
+            return false;
+        }
+    }
+
+    // common_type = elem_type (קריטי!)
+    out->set_array(header, static_cast<metaffi_types>(elem_type));
+    return true;
+}
+
+
 // ======================================================================
 // CDT -> V8 (פריט בודד)
 // ======================================================================
@@ -170,6 +214,9 @@ Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err)
             cdt_metaffi_handle* h = in.cdt_val.handle_val;
             return nodejs_object::handle_to_v8(iso, ctx, h, out_err);
         }
+            // --- any (defensive) ---
+        case metaffi_any_type:
+            return Null(iso);
 
         default:
             set_err(out_err, "cdt_to_v8: unsupported CDT type");
@@ -283,7 +330,6 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
 
     metaffi_type t = dst.type;
 
-    // --- Arrays (כרגע נתמך כ-array<any>) ---
     if (t & metaffi_array_type)
     {
         if (!in->IsArray())
@@ -292,9 +338,20 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
             return false;
         }
 
+        // elem_type = כל הביטים חוץ מ-array
+        metaffi_type elem_type = (t & ~metaffi_array_type);
+
+        // בשלב הזה לא תומכים ב-any[]
+        if (elem_type == 0 || elem_type == metaffi_any_type)
+        {
+            set_err(out_err, "v8_to_cdt_as_type: any[] not supported yet (typed arrays only)");
+            return false;
+        }
+
         Local<Array> js_arr = in.As<Array>();
-        return v8_array_to_cdt_any_array(o, js_arr, out, out_err);
+        return v8_array_to_cdt_typed_array(o, js_arr, elem_type, out, out_err);
     }
+
 
     // --- שאר הטיפוסים (לא array) ---
     switch (t)

@@ -244,48 +244,133 @@ public class test {
                 e.printStackTrace();
             }
 
-            // ==== ARRAY<any> TESTS (Java) ====
-            try {
-                System.out.println("\n==== ARRAY<any> TESTS (Java) ====");
+           // ==== TYPED ARRAY TESTS (Java) ====
+           try {
+               System.out.println("\n==== TYPED ARRAY TESTS (Java) ====");
 
-                MetaFFITypeInfo anyArray = new MetaFFITypeInfo(
-                    MetaFFITypeInfo.MetaFFITypes.MetaFFIAnyArray
-                );
+               // ---------- string8[] ----------
+               System.out.println("\n-- string8[] + join --");
 
-                Caller makeMixedArray = testModule.load(
-                    "callable=make_mixed_array",
-                    null,
-                    new MetaFFITypeInfo[]{ anyArray }
-                );
+               MetaFFITypeInfo str8Array = new MetaFFITypeInfo(
+                   MetaFFITypeInfo.MetaFFITypes.MetaFFIString8Array
+               );
+               MetaFFITypeInfo str8 = new MetaFFITypeInfo(
+                   MetaFFITypeInfo.MetaFFITypes.MetaFFIString8
+               );
 
-                Object mixedObj = unwrapSingleReturn(makeMixedArray.call());
-                System.out.println("make_mixed_array -> " + mixedObj);
+               Caller makeStringArray = testModule.load(
+                   "callable=make_string_array",
+                   null,
+                   new MetaFFITypeInfo[]{ str8Array }
+               );
 
-                if (mixedObj instanceof Object[]) {
-                    Object[] mixed = (Object[]) mixedObj;
-                    System.out.println("make_mixed_array -> Java Object[] length = " + mixed.length);
-                    for (int i = 0; i < mixed.length; ++i) {
-                        Object el = mixed[i];
-                        System.out.println("  mixed[" + i + "] = " + el +
-                                " (Java type: " + (el != null ? el.getClass().getName() : "null") + ")");
-                    }
+               Caller joinStringArray = testModule.load(
+                   "callable=join_string_array",
+                   new MetaFFITypeInfo[]{ str8Array },
+                   new MetaFFITypeInfo[]{ str8 }
+               );
 
-                    // כרגע: **לא** קוראים sum_array(mixed)
-                    // Caller sumArray = testModule.load(
-                    //         "callable=sum_array",
-                    //         new MetaFFITypeInfo[]{ anyArray },
-                    //         new MetaFFITypeInfo[]{ new MetaFFITypeInfo(MetaFFITypeInfo.MetaFFITypes.MetaFFIFloat64) }
-                    // );
-                    // Object sumRes = unwrapSingleReturn(sumArray.call((Object) mixed));
-                    // System.out.println("sum_array(mixed) -> " + sumRes);
-                } else {
-                    System.out.println("make_mixed_array returned non-array: " + mixedObj +
-                                       (mixedObj != null ? " (" + mixedObj.getClass().getName() + ")" : ""));
-                }
-            } catch (Exception e) {
-                System.err.println("Error in ARRAY<any> tests: " + e.getMessage());
-                e.printStackTrace();
-            }
+               Object strArrObj = unwrapSingleReturn(makeStringArray.call());
+               if (strArrObj instanceof Object[]) {
+                   Object[] arr = (Object[]) strArrObj;
+                   System.out.println("make_string_array -> length = " + arr.length);
+                   for (int i = 0; i < arr.length; ++i) {
+                       Object el = arr[i];
+                       System.out.println("  s[" + i + "] = " + el +
+                           " (Java type: " + (el != null ? el.getClass().getName() : "null") + ")");
+                   }
+
+                   Object joined = unwrapSingleReturn(joinStringArray.call((Object) arr));
+                   System.out.println("join_string_array(arr) -> " + joined);
+
+               } else {
+                   System.out.println("make_string_array returned non-array: " + strArrObj);
+               }
+
+               // ---------- int32[] ----------
+               System.out.println("\n-- int32[] + sum --");
+
+               MetaFFITypeInfo i32Array = new MetaFFITypeInfo(
+                   MetaFFITypeInfo.MetaFFITypes.MetaFFIInt32Array
+               );
+               MetaFFITypeInfo i32 = new MetaFFITypeInfo(
+                   MetaFFITypeInfo.MetaFFITypes.MetaFFIInt32
+               );
+
+               Caller makeInt32Array = testModule.load(
+                   "callable=make_int32_array",
+                   null,
+                   new MetaFFITypeInfo[]{ i32Array }
+               );
+
+               Caller sumInt32Array = testModule.load(
+                   "callable=sum_int32_array",
+                   new MetaFFITypeInfo[]{ i32Array },
+                   new MetaFFITypeInfo[]{ i32 }
+               );
+
+               Object i32ArrObj = unwrapSingleReturn(makeInt32Array.call());
+               if (i32ArrObj instanceof int[]) {
+                   int[] arr = (int[]) i32ArrObj;
+                   System.out.println("make_int32_array -> length = " + arr.length);
+                   for (int i = 0; i < arr.length; ++i) {
+                       System.out.println("  a[" + i + "] = " + arr[i]);
+                   }
+
+                   Object sum = unwrapSingleReturn(sumInt32Array.call(arr)); // בלי (Object)
+                   System.out.println("sum_int32_array(arr) -> " + sum);
+
+               } else {
+                   System.out.println("make_int32_array returned unexpected type: " +
+                       (i32ArrObj != null ? i32ArrObj.getClass().getName() : "null"));
+               }
+               // ---------- handle[] (objects) ----------
+               System.out.println("\n-- handle[] (objects) + sum_ids --");
+
+               MetaFFITypeInfo handleArray = new MetaFFITypeInfo(
+                   MetaFFITypeInfo.MetaFFITypes.MetaFFIHandleArray
+               );
+
+
+               Caller makeObjectArray = testModule.load(
+                   "callable=make_object_array",
+                   null,
+                   new MetaFFITypeInfo[]{ handleArray }
+               );
+
+               Caller sumIds = testModule.load(
+                   "callable=sum_ids",
+                   new MetaFFITypeInfo[]{ handleArray },
+                   new MetaFFITypeInfo[]{ i32 }
+               );
+
+               Object objArr = unwrapSingleReturn(makeObjectArray.call());
+
+               // פה זה כנראה יחזור כ-Object[] של "handles" (אובייקטים עטופים)
+               if (objArr instanceof Object[]) {
+                   Object[] arr = (Object[]) objArr;
+                   System.out.println("make_object_array -> length = " + arr.length);
+                   for (int i = 0; i < arr.length; i++) {
+                       Object el = arr[i];
+                       System.out.println("  obj[" + i + "] = " + el +
+                           " (Java type: " + (el != null ? el.getClass().getName() : "null") + ")");
+                   }
+
+                   Object sum = unwrapSingleReturn(sumIds.call((Object) arr));
+                   System.out.println("sum_ids(arr) -> " + sum + " (expected 6)");
+               } else {
+                   System.out.println("make_object_array returned unexpected type: " +
+                       (objArr != null ? objArr.getClass().getName() : "null"));
+               }
+
+
+
+           } catch (Exception e) {
+               System.err.println("Error in TYPED ARRAY tests: " + e.getMessage());
+               e.printStackTrace();
+           }
+
+
 
         } catch (Exception e) {
             System.err.println("Fatal error: " + e.getMessage());

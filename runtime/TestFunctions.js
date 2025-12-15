@@ -101,28 +101,54 @@ function counter_inc(self, delta) {
 
 // ===== Array<any> tests =====
 
-// מחזיר מערך "מעורב" – מספר, מחרוזת, בוליאן, אובייקט, מספר
-function make_mixed_array() {
-    const arr = [1, "two", true, { x: 42 }, 3.5];
-    console.log("make_mixed_array ->", arr);
-    return arr;
+// ===== string8[] =====
+function make_string_array() {
+    return ["hello", "from", "MetaFFI"];
 }
 
-// מקבל מערך מכל סוג (any[]), מסכם רק את המספרים ומחזיר float64
-function sum_array(arr) {
-    console.log("sum_array: isArray=", Array.isArray(arr), "len=", arr.length);
-    let sum = 0;
-    for (const v of arr) {
-        if (typeof v === "number") {
-            sum += v;
-        }
+
+function join_string_array(arr) {
+    // פעולה אמיתית: join + בדיקת טיפוס
+    if (!Array.isArray(arr)) throw new Error("join_string_array: expected Array");
+    return arr.map(x => String(x)).join("-");
+}
+
+
+
+// ===== int32[] =====
+function make_int32_array() {
+    return [1, 2, 3, -7, 42];
+}
+
+
+function sum_int32_array(arr) {
+    // פעולה אמיתית: sum (והתנהגות int32)
+    if (!Array.isArray(arr)) throw new Error("sum_int32_array: expected Array");
+    let s = 0;
+    for (const x of arr) {
+        // enforce int32 semantics:
+        s = (s + (Number(x) | 0)) | 0;
     }
-    console.log("sum_array ->", sum);
-    return sum;
+    return s;
 }
 
-// אופציונלי: פונקציה שמחזירה את אורך המערך, כדי לבדוק גם את הצד הזה
-function array_length(arr) {
-    console.log("array_length: len=", arr.length);
-    return arr.length;
+function make_object_array() {
+    return [
+        { id: 1, name: "Alice" },
+        { id: 2, name: "Bob" },
+        { id: 3, name: "Meta" }
+    ];
 }
+
+
+function sum_ids(objs) {
+    if (!Array.isArray(objs)) throw new Error("sum_ids: expected Array");
+    let s = 0;
+    for (const o of objs) {
+        if (o == null || typeof o !== "object") throw new Error("sum_ids: element is not object");
+        s += Number(o.id) || 0;
+    }
+    return s; // Number -> float64 בדרך כלל (או int32 אם תגדירו)
+}
+
+

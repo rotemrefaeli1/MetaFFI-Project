@@ -77,11 +77,11 @@ namespace nodejs_object
             return Undefined(iso);
         }
 
-        std::cerr << "[nodejs] handle_to_v8: h=" << h
-                  << " handle=" << h->handle
-                  << " runtime_id=" << h->runtime_id
-                  << " release=" << (void*)h->release
-                  << std::endl;
+        // std::cerr << "[nodejs] handle_to_v8: h=" << h
+        //           << " handle=" << h->handle
+        //           << " runtime_id=" << h->runtime_id
+        //           << " release=" << (void*)h->release
+        //           << std::endl;
 
         if(h->runtime_id != NODEJS_RUNTIME_ID){
             set_err(out_err, "handle_to_v8: handle belongs to different runtime");
@@ -94,11 +94,11 @@ namespace nodejs_object
             return Undefined(iso);
         }
 
-        std::cerr << "[nodejs] handle_to_v8: nodejs_object_handle=" << nh
-                  << " id=" << nh->id
-                  << " isolate=" << nh->isolate
-                  << " value.IsEmpty=" << (nh->value.IsEmpty() ? "true" : "false")
-                  << std::endl;
+        // std::cerr << "[nodejs] handle_to_v8: nodejs_object_handle=" << nh
+        //           << " id=" << nh->id
+        //           << " isolate=" << nh->isolate
+        //           << " value.IsEmpty=" << (nh->value.IsEmpty() ? "true" : "false")
+        //           << std::endl;
 
         if(nh->isolate != iso){
             set_err(out_err, "handle_to_v8: isolate mismatch between handle and call site");
