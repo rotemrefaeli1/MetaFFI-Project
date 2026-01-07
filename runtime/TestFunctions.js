@@ -143,3 +143,8 @@ function sum_ids(objs) {
     }
     return s; // Number -> usually float64 (or int32 if enforced)
 }
+
+
+function get_any_array_basic() {
+    return [7n, "hello", true, 5n, "world", false];
+}

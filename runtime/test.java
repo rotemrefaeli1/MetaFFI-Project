@@ -368,6 +368,45 @@ public class test {
                e.printStackTrace();
            }
 
+           // ==================== ANY[] BASIC TEST ====================
+           try {
+               System.out.println("\n==== ANY[] BASIC TEST (Java) ====");
+
+               MetaFFITypeInfo anyArray = new MetaFFITypeInfo(
+                   MetaFFITypeInfo.MetaFFITypes.MetaFFIAnyArray
+               );
+
+               Caller getAnyArray = testModule.load(
+                   "callable=get_any_array_basic",
+                   null,
+                   new MetaFFITypeInfo[]{ anyArray }
+               );
+
+               Object res = unwrapSingleReturn(getAnyArray.call());
+
+               if (res instanceof Object[]) {
+                   Object[] arr = (Object[]) res;
+
+                   System.out.println("get_any_array_basic -> length = " + arr.length);
+                   for (int i = 0; i < arr.length; i++) {
+                       Object el = arr[i];
+                       System.out.println(
+                           "  a[" + i + "] = " + el +
+                           " (Java type: " +
+                           (el != null ? el.getClass().getName() : "null") + ")"
+                       );
+                   }
+               } else {
+                   System.out.println("get_any_array_basic returned non-array: " +
+                       (res != null ? res.getClass().getName() : "null"));
+               }
+
+           } catch (Exception e) {
+               System.err.println("Error in ANY[] BASIC TEST: " + e.getMessage());
+               e.printStackTrace();
+           }
+
+
         } catch (Exception e) {
             System.err.println("Fatal error: " + e.getMessage());
             e.printStackTrace();

@@ -99,56 +99,89 @@ char_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_char8_type)
 
 to_upper_char = mod.load_entity(
     'callable=to_upper_char',
-    [char_t],      # one parameter of type char8
-    [char_t]       # return type char8
+    [char_t],
+    [char_t]
 )
 
 print("====to_upper_char====")
 print("to_upper_char('a') =", to_upper_char('a'))
 
 # ---------------- OBJECT / HANDLE TEST ----------------
-
+# (יישור קו עם Java: int64)
 print("==== OBJECT / HANDLE TEST ====")
 
 handle_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_handle_type)
-i32_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int32_type)
+i64_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int64_type)
 
-# constructor: create_counter(start:int32) -> handle
-create_counter = mod.load_entity(
-    'callable=create_counter',
-    [i32_t],
-    [handle_t]
-)
+create_counter = mod.load_entity('callable=create_counter', [i64_t], [handle_t])
+counter_get    = mod.load_entity('callable=counter_get',    [handle_t], [i64_t])
+counter_inc    = mod.load_entity('callable=counter_inc',    [handle_t, i64_t], [i64_t])
 
-# method: counter_get(self:handle) -> int32
-counter_get = mod.load_entity(
-    'callable=counter_get',
-    [handle_t],
-    [i32_t]
-)
-
-# method: counter_inc(self:handle, delta:int32) -> int32
-counter_inc = mod.load_entity(
-    'callable=counter_inc',
-    [handle_t, i32_t],
-    [i32_t]
-)
-
-# 1. create counter starting at 10
 c = create_counter(10)
 print("handle returned from create_counter(10) =", c)
-
-# 2. check initial value
 print("counter_get(c) ->", counter_get(c))
-
-# 3. increment by 5
 print("counter_inc(c, 5) ->", counter_inc(c, 5))
-
-# 4. verify new value is 15
 print("counter_get(c) ->", counter_get(c))
+
+# ==================== TYPED ARRAY TESTS ====================
+
+print("\n==== TYPED ARRAY TESTS (Python) ====")
+
+# --- string8[] + join ---
+print("\n-- string8[] + join --")
+str8_arr_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_string8_array_type)
+
+make_string_array = mod.load_entity('callable=make_string_array', None, [str8_arr_t])
+join_string_array = mod.load_entity('callable=join_string_array', [str8_arr_t], [str_t])
+
+sarr = make_string_array()
+print("make_string_array ->", sarr, "(type:", type(sarr), ")")
+print("join_string_array(sarr) ->", join_string_array(sarr))
+
+# --- int32[] + sum ---
+print("\n-- int32[] + sum --")
+i32_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int32_type)
+i32_arr_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_int32_array_type)
+
+make_int32_array = mod.load_entity('callable=make_int32_array', None, [i32_arr_t])
+sum_int32_array  = mod.load_entity('callable=sum_int32_array',  [i32_arr_t], [i32_t])
+
+iarr = make_int32_array()
+print("make_int32_array ->", iarr, "(type:", type(iarr), ")")
+print("sum_int32_array(iarr) ->", sum_int32_array(iarr))
+
+# --- handle[] (objects) + sum_ids ---
+print("\n-- handle[] (objects) + sum_ids --")
+handle_arr_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_handle_array_type)
+
+make_object_array = mod.load_entity('callable=make_object_array', None, [handle_arr_t])
+sum_ids           = mod.load_entity('callable=sum_ids', [handle_arr_t], [i32_t])
+
+obj_arr = make_object_array()
+print("make_object_array ->", obj_arr, "(type:", type(obj_arr), ")")
+print("sum_ids(obj_arr) ->", sum_ids(obj_arr), "(expected 6)")
+
+# ==================== ANY[] BASIC TEST ====================
+
+print("\n==== ANY[] BASIC TEST (Python) ====")
+any_arr_t = mt.metaffi_type_info(mt.MetaFFITypes.metaffi_any_array_type)
+
+get_any_array_basic = mod.load_entity('callable=get_any_array_basic', None, [any_arr_t])
+any_arr = get_any_array_basic()
+
+print("get_any_array_basic ->", any_arr, "(type:", type(any_arr), ")")
+if isinstance(any_arr, (list, tuple)):
+    print("length =", len(any_arr))
+    for i, el in enumerate(any_arr):
+        print(f"  a[{i}] = {el} (py type: {type(el)})")
+
 
 # --- cleanup ---
-del hello, add_ints, add_ints64, add_f32, add_f64, div_i64, invert_bool, and_bool, echo, greet, to_upper_char, create_counter, counter_get, counter_inc
+del hello, add_ints, add_ints64, add_f32, add_f64, div_i64
+del invert_bool, and_bool, echo, greet, to_upper_char
+del create_counter, counter_get, counter_inc
+del make_string_array, join_string_array, make_int32_array, sum_int32_array, make_object_array, sum_ids
+del get_any_array_basic
 del mod
 
 rt.release_runtime_plugin()

@@ -38,6 +38,7 @@ static bool v8_array_to_cdt_any_array(const v8_conv_opts& o,
                                       cdt* out,
                                       char** out_err)
 {
+
     if (out_err) *out_err = nullptr;
 
     Isolate* iso = o.isolate;
@@ -68,6 +69,7 @@ static bool v8_array_to_cdt_any_array(const v8_conv_opts& o,
 
         // Each element is 'any' -> use the generic inference path
         v8_to_cdt(o, elem, &(*header)[i], out_err);
+
         if (out_err && *out_err)
         {
             delete header;
@@ -166,7 +168,6 @@ Local<Value> cdt_to_v8(const v8_conv_opts& o, const cdt& in, char** out_err)
         }
         return js_arr;
     }
-
     // From here: handle primitives by their exact type
     switch (t)
     {
@@ -297,10 +298,13 @@ void v8_to_cdt(const v8_conv_opts& o, Local<Value> in, cdt* out, char** out_err)
     // String -> string8 (generic path - must ensure the type is indeed string8)
     if (in->IsString())
     {
-        metaffi_type_info dst(metaffi_string8_type);
-        (void)nodejs_str::from_v8_to_type(iso, ctx, in, dst, *out, out_err);
+        nodejs_str::from_v8(iso, ctx, in, *out, out_err);
         return;
     }
+
+
+
+
 
     // Object / Function -> handle
     if (in->IsObject() || in->IsFunction())
@@ -342,12 +346,27 @@ bool v8_to_cdt_as_type(const v8_conv_opts& o,
         // elem_type = all bits except the array bit
         metaffi_type elem_type = (t & ~metaffi_array_type);
 
-        // At this stage we do not support any[]
-        if (elem_type == 0 || elem_type == metaffi_any_type)
+        if (t & metaffi_array_type)
         {
-            set_err(out_err, "v8_to_cdt_as_type: any[] not supported yet (typed arrays only)");
-            return false;
+            if (!in->IsArray())
+            {
+                set_err(out_err, "v8_to_cdt_as_type: expected JS Array for metaffi_array_type");
+                return false;
+            }
+
+            metaffi_type elem_type = (t & ~metaffi_array_type);
+            Local<Array> js_arr = in.As<Array>();
+
+            // ✅ support any[]
+            if (elem_type == 0 || elem_type == metaffi_any_type)
+            {
+                return v8_array_to_cdt_any_array(o, js_arr, out, out_err);
+            }
+
+            // existing homogeneous typed array path
+            return v8_array_to_cdt_typed_array(o, js_arr, elem_type, out, out_err);
         }
+
 
         Local<Array> js_arr = in.As<Array>();
         return v8_array_to_cdt_typed_array(o, js_arr, elem_type, out, out_err);
