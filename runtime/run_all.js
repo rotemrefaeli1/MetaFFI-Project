@@ -106,11 +106,6 @@ function throwIfErr(errPtrPtr, where, runtimeName) {
     if (!p.isNull()) {
         const msg = ref.readCString(p, 0);
 
-        // TEMP stability: don't free openjdk error strings until allocator ownership is confirmed
-        if (runtimeName !== "xllr.openjdk") {
-            xllr.free_string(p);
-        }
-
         throw new Error(`${where}: ${msg}`);
     }
 }
@@ -225,6 +220,7 @@ function readCdtFloat64(rawBuf, index) {
 
 function readCdtString8(rawBuf, index, runtimeName) {
     const off = index * cdt.size;
+
     const t = rawBuf.readBigUInt64LE(off + 0);
     if (t !== metaffi_string8_type) {
         throw new Error(`Unexpected return type: ${t.toString()}`);
@@ -233,19 +229,23 @@ function readCdtString8(rawBuf, index, runtimeName) {
     const addr = rawBuf.readBigUInt64LE(off + 8);
     if (addr === 0n) return null;
 
+
+    const freeReq = rawBuf.readUInt8(off + 16);
+
     const ptrBuf = Buffer.alloc(ref.sizeof.pointer);
     ptrBuf.writeBigUInt64LE(addr, 0);
     const cstrPtr = ref.readPointer(ptrBuf, 0);
 
     const s = ref.readCString(cstrPtr, 0);
 
-    // Free returned strings (this is expected by your XLLR contract).
-    // If you suspect allocator mismatch here too, you can temporarily skip for openjdk,
-    // but that will leak strings.
-    xllr.free_string(cstrPtr);
+
+    if (freeReq) {
+        xllr.free_string(cstrPtr);
+    }
 
     return s;
 }
+
 
 // ----- call -----
 
@@ -280,7 +280,7 @@ function callParamsRet(runtime, xcallPtr, paramsRaw, retsRaw) {
     const JAVA = "xllr.openjdk";
 
     loadRuntime(PY);
-    loadRuntime(JAVA);
+  //  loadRuntime(JAVA);
 
     // ---------------------------
     // Python
@@ -329,42 +329,50 @@ function callParamsRet(runtime, xcallPtr, paramsRaw, retsRaw) {
     freeXcall(PY, pyGreet, "python greet");
 
     // ---------------------------
-    // Java
-    // ---------------------------
-    // Ensure JavaAPI.class exists in this folder:
-    //   cd /usr/local/metaffi/nodejs && javac JavaAPI.java
-    const javaModule = "/usr/local/metaffi/nodejs";
+// Go
+// ---------------------------
+    const GO_CANDIDATES = ["go_runtime", "xllr.go_runtime", "xllr.golang", "xllr.go"];
+    let GO = null;
 
-    // Make '.' in JVM classpath point to the correct directory
-    try {
-        process.chdir(javaModule);
-    } catch (e) {
-        console.warn(`Warning: failed to chdir(${javaModule}): ${e.message}`);
+    for (const cand of GO_CANDIDATES) {
+        try {
+            loadRuntime(cand);
+            GO = cand;
+            break;
+        } catch (e) {
+            // ignore and try next
+        }
     }
+    if (!GO) throw new Error("Could not load any Go runtime plugin: " + GO_CANDIDATES.join(", "));
 
-    const jAdd = loadEntity(
-        JAVA,
-        javaModule,
-        "class=JavaAPI,callable=add",
-        [metaffi_float64_type, metaffi_float64_type],
-        [metaffi_float64_type]
+    const goModule = "/usr/local/metaffi/nodejs/libgoapi.so";
+
+    const goAdd = loadEntity(
+        GO,
+        goModule,
+        "callable=add",
+        [metaffi_int32_type, metaffi_int32_type],
+        [metaffi_int64_type]
     );
 
     {
         const paramsRaw = Buffer.alloc(cdt.size * 2);
         const retsRaw = Buffer.alloc(cdt.size * 1);
 
-        writeCdtFloat64(paramsRaw, 0, 4.0);
-        writeCdtFloat64(paramsRaw, 1, 5.0);
+        writeCdtInt32(paramsRaw, 0, 7);
+        writeCdtInt32(paramsRaw, 1, 5);
 
-        callParamsRet(JAVA, jAdd, paramsRaw, retsRaw);
-        console.log("Java add(4,5) =", readCdtFloat64(retsRaw, 0));
+        callParamsRet(GO, goAdd, paramsRaw, retsRaw);
+        console.log("Go add(7,5) =", readCdtInt64(retsRaw, 0));
     }
 
-    const jGreet = loadEntity(
-        JAVA,
-        javaModule,
-        "class=JavaAPI,callable=greet",
+    freeXcall(GO, goAdd, "go add");
+
+
+    const goGreet = loadEntity(
+        GO,
+        goModule,
+        "callable=greet",
         [metaffi_string8_type],
         [metaffi_string8_type]
     );
@@ -373,16 +381,72 @@ function callParamsRet(runtime, xcallPtr, paramsRaw, retsRaw) {
         const paramsRaw = Buffer.alloc(cdt.size * 1);
         const retsRaw = Buffer.alloc(cdt.size * 1);
 
-        const nameBuf = Buffer.from("Sagi\0", "utf8");
+        const nameBuf = Buffer.from("Rotem\0", "utf8");
         writeCdtString8(paramsRaw, 0, nameBuf);
 
-        callParamsRet(JAVA, jGreet, paramsRaw, retsRaw);
-        console.log("Java greet('Sagi') =", readCdtString8(retsRaw, 0, JAVA));
+        callParamsRet(GO, goGreet, paramsRaw, retsRaw);
+        console.log("Go greet('Rotem') =", readCdtString8(retsRaw, 0, GO));
     }
 
-    freeXcall(JAVA, jAdd, "java add");
-    freeXcall(JAVA, jGreet, "java greet");
+    freeXcall(GO, goGreet, "go greet");
+
+
+
+    // ---------------------------
+    // Java-FIX
+    // ---------------------------
+    // Ensure JavaAPI.class exists in this folder:
+    //   cd /usr/local/metaffi/nodejs && javac JavaAPI.java
+    // const javaModule = "/usr/local/metaffi/nodejs";
+    //
+    // // Make '.' in JVM classpath point to the correct directory
+    // try {
+    //     process.chdir(javaModule);
+    // } catch (e) {
+    //     console.warn(`Warning: failed to chdir(${javaModule}): ${e.message}`);
+    // }
+    //
+    // const jAdd = loadEntity(
+    //     JAVA,
+    //     javaModule,
+    //     "class=JavaAPI,callable=add",
+    //     [metaffi_float64_type, metaffi_float64_type],
+    //     [metaffi_float64_type]
+    // );
+    //
+    // {
+    //     const paramsRaw = Buffer.alloc(cdt.size * 2);
+    //     const retsRaw = Buffer.alloc(cdt.size * 1);
+    //
+    //     writeCdtFloat64(paramsRaw, 0, 4.0);
+    //     writeCdtFloat64(paramsRaw, 1, 5.0);
+    //
+    //     callParamsRet(JAVA, jAdd, paramsRaw, retsRaw);
+    //     console.log("Java add(4,5) =", readCdtFloat64(retsRaw, 0));
+    // }
+    //
+    // const jGreet = loadEntity(
+    //     JAVA,
+    //     javaModule,
+    //     "class=JavaAPI,callable=greet",
+    //     [metaffi_string8_type],
+    //     [metaffi_string8_type]
+    // );
+    //
+    // {
+    //     const paramsRaw = Buffer.alloc(cdt.size * 1);
+    //     const retsRaw = Buffer.alloc(cdt.size * 1);
+    //
+    //     const nameBuf = Buffer.from("Sagi\0", "utf8");
+    //     writeCdtString8(paramsRaw, 0, nameBuf);
+    //
+    //     callParamsRet(JAVA, jGreet, paramsRaw, retsRaw);
+    //     console.log("Java greet('Sagi') =", readCdtString8(retsRaw, 0, JAVA));
+    // }
+    //
+    // freeXcall(JAVA, jAdd, "java add");
+    // freeXcall(JAVA, jGreet, "java greet");
 
     // freeRuntime(JAVA);
-    // freeRuntime(PY);
+    //freeRuntime(PY);
 })();
