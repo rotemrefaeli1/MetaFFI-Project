@@ -20,6 +20,7 @@ const i64 = ref.types.int64;
 const metaffi_float64_type = 1n;
 const metaffi_int32_type = 16n;
 const metaffi_int64_type = 32n;
+const metaffi_char8_type = 2048n;
 const metaffi_string8_type = 4096n;
 
 const MIXED_OR_UNKNOWN_DIMENSIONS = -1n;
@@ -273,6 +274,37 @@ function callParamsRet(runtime, xcallPtr, paramsRaw, retsRaw) {
     throwIfErr(err, `xcall_params_ret(${runtime})`, runtime);
 }
 
+// >>> ADDED FOR CDT TESTING (Array-as-single-argument helper) <<<
+// For Python sum_int_array(arr): we must send ONE argument (the array),
+// not N separate arguments. We do this by setting params.length=1 and
+// params.fixed_dimensions=arrayLength, while still pointing arr to the
+// contiguous CDT elements buffer.
+function callParamsRetArray(runtime, xcallPtr, paramsRaw, arrayLength, retsRaw) {
+    const err = ref.alloc(charPtrPtr);
+
+    const pr = new Cdts2([
+        new cdts({
+            arr: paramsRaw,
+            length: u64arg(1n), // ONE parameter: the array
+            fixed_dimensions: i64arg(BigInt(arrayLength)), // array length
+            allocated_on_cache: 0,
+            _pad: new UChar7(),
+        }),
+        new cdts({
+            arr: retsRaw,
+            length: u64arg(BigInt(retsRaw.length / cdt.size)),
+            fixed_dimensions: i64arg(1n),
+            allocated_on_cache: 0,
+            _pad: new UChar7(),
+        }),
+    ]);
+
+    xllr.xcall_params_ret(xcallPtr, pr.buffer, err);
+    throwIfErr(err, `xcall_params_ret(${runtime})`, runtime);
+}
+
+
+
 // ----- main -----
 
 (function main() {
@@ -280,7 +312,7 @@ function callParamsRet(runtime, xcallPtr, paramsRaw, retsRaw) {
     const JAVA = "xllr.openjdk";
 
     loadRuntime(PY);
-  //  loadRuntime(JAVA);
+    //  loadRuntime(JAVA);
 
     // ---------------------------
     // Python
@@ -325,6 +357,94 @@ function callParamsRet(runtime, xcallPtr, paramsRaw, retsRaw) {
         console.log("Python greet('Sagi') =", readCdtString8(retsRaw, 0, PY));
     }
 
+    // >>> ADDED FOR CDT TESTING (Python float) <<<
+    const pyMulFloat = loadEntity(
+        PY,
+        pyModule,
+        "callable=mul_float",
+        [metaffi_float64_type, metaffi_float64_type],
+        [metaffi_float64_type]
+    );
+
+    // >>> ADDED FOR CDT TESTING (Python char) <<<
+    const pyNextChar = loadEntity(
+        PY,
+        pyModule,
+        "callable=next_char",
+        [metaffi_string8_type],
+        [metaffi_string8_type]
+    );
+
+    // >>> ADDED FOR CDT TESTING (Python string) <<<
+    const pyRepeatString = loadEntity(
+        PY,
+        pyModule,
+        "callable=repeat_string",
+        [metaffi_string8_type, metaffi_int32_type],
+        [metaffi_string8_type]
+    );
+
+    // >>> ADDED FOR CDT TESTING (Python array) <<<
+    const pySumIntArray = loadEntity(
+        PY,
+        pyModule,
+        "callable=sum_int_array",
+        [metaffi_int32_type],   // element type
+        [metaffi_int64_type]
+    );
+    {
+        const paramsRaw = Buffer.alloc(cdt.size * 2);
+        const retsRaw = Buffer.alloc(cdt.size * 1);
+
+        writeCdtFloat64(paramsRaw, 0, 1.5);
+        writeCdtFloat64(paramsRaw, 1, 2.25);
+
+        callParamsRet(PY, pyMulFloat, paramsRaw, retsRaw);
+        console.log("Python mul_float(1.5,2.25) =", readCdtFloat64(retsRaw, 0));
+
+        const strBuf = Buffer.from("Hi\0", "utf8");
+
+        writeCdtString8(paramsRaw, 0, strBuf);
+        writeCdtInt32(paramsRaw, 1, 3);
+
+        callParamsRet(PY, pyRepeatString, paramsRaw, retsRaw);
+
+        console.log("Python repeat_string('Hi', 3) =", readCdtString8(retsRaw, 0, PY));
+
+    }
+    {
+        const paramsRaw = Buffer.alloc(cdt.size * 1);
+        const retsRaw = Buffer.alloc(cdt.size * 1);
+
+        const chBuf = Buffer.from("A\0", "utf8");
+        writeCdtString8(paramsRaw, 0, chBuf);
+
+        callParamsRet(PY, pyNextChar, paramsRaw, retsRaw);
+        console.log("Python next_char('A') =", readCdtString8(retsRaw, 0, PY));
+    }
+    {
+        const values = [1, 2, 3, 4, 5];
+
+        const paramsRaw = Buffer.alloc(cdt.size * values.length);
+        const retsRaw = Buffer.alloc(cdt.size * 1);
+
+        for (let i = 0; i < values.length; i++) {
+            writeCdtInt32(paramsRaw, i, values[i]);
+        }
+
+        // Python array test: pass N int32 arguments (runtime does NOT wrap into a list)
+        callParamsRet(PY, pySumIntArray, paramsRaw, retsRaw);
+
+        console.log(
+            "Python sum_int_array([1,2,3,4,5]) =",
+            readCdtInt64(retsRaw, 0)
+        );
+    }
+
+    freeXcall(PY, pyMulFloat, "python mul_float");
+    freeXcall(PY, pyNextChar, "python next_char");
+    freeXcall(PY, pyRepeatString, "python repeat_string");
+    freeXcall(PY, pySumIntArray, "python sum_int_array");
     freeXcall(PY, pyAdd, "python add");
     freeXcall(PY, pyGreet, "python greet");
 
@@ -388,8 +508,94 @@ function callParamsRet(runtime, xcallPtr, paramsRaw, retsRaw) {
         console.log("Go greet('Rotem') =", readCdtString8(retsRaw, 0, GO));
     }
 
-    freeXcall(GO, goGreet, "go greet");
+    // >>> ADDED FOR CDT TESTING (Go float) <<<
+    const goAddFloat = loadEntity(
+        GO,
+        goModule,
+        "callable=add_float",
+        [metaffi_float64_type, metaffi_float64_type],
+        [metaffi_float64_type]
+    );
 
+    // >>> ADDED FOR CDT TESTING (Go char) <<<
+    const goNextChar = loadEntity(
+        GO,
+        goModule,
+        "callable=next_char",
+        [metaffi_char8_type],
+        [metaffi_char8_type]
+    );
+
+    // >>> ADDED FOR CDT TESTING (Go string) <<<
+    const goEchoString = loadEntity(
+        GO,
+        goModule,
+        "callable=echo_string",
+        [metaffi_string8_type],
+        [metaffi_string8_type]
+    );
+    // >>> ADDED FOR CDT TESTING (Go array) <<<
+    const goSumIntArray = loadEntity(
+        GO,
+        goModule,
+        "callable=sum_int_array",
+        [metaffi_int32_type],
+        [metaffi_int64_type]
+    );
+
+
+    {
+        const paramsRaw = Buffer.alloc(cdt.size * 2);
+        const retsRaw = Buffer.alloc(cdt.size * 1);
+
+        writeCdtFloat64(paramsRaw, 0, 3.5);
+        writeCdtFloat64(paramsRaw, 1, 4.25);
+
+
+        callParamsRet(GO, goAddFloat, paramsRaw, retsRaw);
+        console.log("Go add_float(3.5,4.25) =", readCdtFloat64(retsRaw, 0));
+
+        // pass char as int8 (ASCII)
+        paramsRaw.writeBigUInt64LE(metaffi_char8_type, 0);
+        paramsRaw.writeUInt8("A".charCodeAt(0), 8);
+        paramsRaw.writeUInt8(0, 16);
+
+        callParamsRet(GO, goNextChar, paramsRaw, retsRaw);
+
+        const nextCharCode = retsRaw.readUInt8(8);
+        console.log("Go next_char('A') =", String.fromCharCode(nextCharCode));
+
+        const msgBuf = Buffer.from("MetaFFI\0", "utf8");
+        writeCdtString8(paramsRaw, 0, msgBuf);
+
+        callParamsRet(GO, goEchoString, paramsRaw, retsRaw);
+
+        console.log("Go echo_string('MetaFFI') =", readCdtString8(retsRaw, 0, GO));
+
+    }
+    {
+        const values = [10, 20, 30];
+
+        const paramsRaw = Buffer.alloc(cdt.size * values.length);
+        const retsRaw = Buffer.alloc(cdt.size * 1);
+
+        for (let i = 0; i < values.length; i++) {
+            writeCdtInt32(paramsRaw, i, values[i]);
+        }
+
+        callParamsRet(GO, goSumIntArray, paramsRaw, retsRaw);
+
+        console.log(
+            "Go sum_int_array([10,20,30]) =",
+            readCdtInt64(retsRaw, 0)
+        );
+    }
+
+    freeXcall(GO, goAddFloat, "go add_float");
+    freeXcall(GO, goGreet, "go greet");
+    freeXcall(GO, goNextChar, "go next_char");
+    freeXcall(GO, goEchoString, "go echo_string");
+    freeXcall(GO, goSumIntArray, "go sum_int_array");
 
 
     // ---------------------------
