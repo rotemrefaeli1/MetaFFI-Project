@@ -7,6 +7,4 @@ public class JavaAPI {
     public static String greet(String name) {
         return "Hello from Java, " + name;
     }
-
-    public static int counter = 200;
 }

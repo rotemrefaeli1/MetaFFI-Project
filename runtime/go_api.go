@@ -28,6 +28,7 @@ struct cdts {
 import "C"
 
 import (
+	"encoding/json"
 	"fmt"
 	"unsafe"
 )
@@ -242,6 +243,148 @@ func EntryPoint_echo_string(_ *C.void, xcall_params *C.struct_cdts, out_err **C.
 
 	goStr := C.GoString(cstr)
 	outC := C.CString(goStr)
+
+	r0 := cdtAt(rets.arr, 0)
+	*r0 = C.struct_cdt{}
+	r0.t = metaffi_string8_type
+	unionSetPtr(r0, unsafe.Pointer(outC))
+	r0.free_required = 1
+}
+
+// -------------------------------------------------
+// Complex object test: Student (JSON over string8)
+// Fields: name (string), id (int32), age (int32), gpa (float64)
+// -------------------------------------------------
+
+type Student struct {
+	Name string  `json:"name"`
+	ID   int32   `json:"id"`
+	Age  int32   `json:"age"`
+	GPA  float64 `json:"gpa"`
+}
+
+//export EntryPoint_student_create
+func EntryPoint_student_create(_ *C.void, xcall_params *C.struct_cdts, out_err **C.char) {
+	params := (*C.struct_cdts)(unsafe.Add(unsafe.Pointer(xcall_params), 0))
+	rets := (*C.struct_cdts)(unsafe.Add(unsafe.Pointer(xcall_params), unsafe.Sizeof(*xcall_params)))
+
+	if params.length < 4 || rets.length < 1 {
+		*out_err = C.CString("EntryPoint_student_create: invalid params/ret lengths")
+		return
+	}
+
+	pName := cdtAt(params.arr, 0)
+	pID := cdtAt(params.arr, 1)
+	pAge := cdtAt(params.arr, 2)
+	pGpa := cdtAt(params.arr, 3)
+
+	if pName.t != metaffi_string8_type || pID.t != metaffi_int32_type || pAge.t != metaffi_int32_type || pGpa.t != metaffi_float64_type {
+		*out_err = C.CString("EntryPoint_student_create: expected (string8,int32,int32,float64)")
+		return
+	}
+
+	namePtr := (*C.char)(unionAsPtr(pName))
+	if namePtr == nil {
+		*out_err = C.CString("EntryPoint_student_create: null name")
+		return
+	}
+
+	s := Student{
+		Name: C.GoString(namePtr),
+		ID:   int32(uint32(unionAsU64(pID))),
+		Age:  int32(uint32(unionAsU64(pAge))),
+		GPA:  *(*float64)(unsafe.Pointer(&pGpa.cdt_val)),
+	}
+
+	b, err := json.Marshal(s)
+	if err != nil {
+		*out_err = C.CString("EntryPoint_student_create: json marshal failed")
+		return
+	}
+
+	outC := C.CString(string(b))
+
+	r0 := cdtAt(rets.arr, 0)
+	*r0 = C.struct_cdt{}
+	r0.t = metaffi_string8_type
+	unionSetPtr(r0, unsafe.Pointer(outC))
+	r0.free_required = 1
+}
+
+//export EntryPoint_student_get_gpa
+func EntryPoint_student_get_gpa(_ *C.void, xcall_params *C.struct_cdts, out_err **C.char) {
+	params := (*C.struct_cdts)(unsafe.Add(unsafe.Pointer(xcall_params), 0))
+	rets := (*C.struct_cdts)(unsafe.Add(unsafe.Pointer(xcall_params), unsafe.Sizeof(*xcall_params)))
+
+	if params.length < 1 || rets.length < 1 {
+		*out_err = C.CString("EntryPoint_student_get_gpa: invalid params/ret lengths")
+		return
+	}
+
+	p0 := cdtAt(params.arr, 0)
+	if p0.t != metaffi_string8_type {
+		*out_err = C.CString("EntryPoint_student_get_gpa: expected string8")
+		return
+	}
+
+	cstr := (*C.char)(unionAsPtr(p0))
+	if cstr == nil {
+		*out_err = C.CString("EntryPoint_student_get_gpa: null json")
+		return
+	}
+
+	var s Student
+	if err := json.Unmarshal([]byte(C.GoString(cstr)), &s); err != nil {
+		*out_err = C.CString("EntryPoint_student_get_gpa: json parse failed")
+		return
+	}
+
+	r0 := cdtAt(rets.arr, 0)
+	*r0 = C.struct_cdt{}
+	r0.t = metaffi_float64_type
+	*(*float64)(unsafe.Pointer(&r0.cdt_val)) = s.GPA
+	r0.free_required = 0
+}
+
+//export EntryPoint_student_set_gpa
+func EntryPoint_student_set_gpa(_ *C.void, xcall_params *C.struct_cdts, out_err **C.char) {
+	params := (*C.struct_cdts)(unsafe.Add(unsafe.Pointer(xcall_params), 0))
+	rets := (*C.struct_cdts)(unsafe.Add(unsafe.Pointer(xcall_params), unsafe.Sizeof(*xcall_params)))
+
+	if params.length < 2 || rets.length < 1 {
+		*out_err = C.CString("EntryPoint_student_set_gpa: invalid params/ret lengths")
+		return
+	}
+
+	pJson := cdtAt(params.arr, 0)
+	pNew := cdtAt(params.arr, 1)
+
+	if pJson.t != metaffi_string8_type || pNew.t != metaffi_float64_type {
+		*out_err = C.CString("EntryPoint_student_set_gpa: expected (string8,float64)")
+		return
+	}
+
+	cstr := (*C.char)(unionAsPtr(pJson))
+	if cstr == nil {
+		*out_err = C.CString("EntryPoint_student_set_gpa: null json")
+		return
+	}
+
+	var s Student
+	if err := json.Unmarshal([]byte(C.GoString(cstr)), &s); err != nil {
+		*out_err = C.CString("EntryPoint_student_set_gpa: json parse failed")
+		return
+	}
+
+	s.GPA = *(*float64)(unsafe.Pointer(&pNew.cdt_val))
+
+	b, err := json.Marshal(s)
+	if err != nil {
+		*out_err = C.CString("EntryPoint_student_set_gpa: json marshal failed")
+		return
+	}
+
+	outC := C.CString(string(b))
 
 	r0 := cdtAt(rets.arr, 0)
 	*r0 = C.struct_cdt{}
